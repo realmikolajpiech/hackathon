@@ -108,18 +108,7 @@ const FILLER_SKYSCRAPERS = [
   '/models/commercial/building-skyscraper-b.glb',
   '/models/commercial/building-skyscraper-c.glb',
 ]
-const FILLER_MEDIUM = [
-  '/models/commercial/building-a.glb',
-  '/models/commercial/building-b.glb',
-  '/models/commercial/building-c.glb',
-  '/models/commercial/building-e.glb',
-  '/models/commercial/building-h.glb',
-]
-
-// Max possible distance from center (used for probability gradient)
-const MAX_BLOCK_DIST = (EXT - 1 + BLOCK_HALF) * W
-
-;[...ROAD_MODELS, ...FILLER_SKYSCRAPERS, ...FILLER_MEDIUM].forEach(u => useGLTF.preload(u))
+;[...ROAD_MODELS, ...FILLER_SKYSCRAPERS].forEach(u => useGLTF.preload(u))
 
 function extractFirstMesh(scene: THREE.Object3D): THREE.Mesh | null {
   let found: THREE.Mesh | null = null
@@ -202,7 +191,6 @@ function RoadGrid() {
 
 // ─── Filler buildings (4 per block) ─────────────────────────────────────────
 const FILLER_SCALE = WORLD_SCALE * 0.7
-const FILLER_MEDIUM_SCALE = WORLD_SCALE * 0.55
 const QUAD_OFF = W * 0.42
 const QUAD_OFFSETS: [number, number][] = [
   [-QUAD_OFF, -QUAD_OFF],
@@ -213,10 +201,9 @@ const QUAD_OFFSETS: [number, number][] = [
 
 function FillerBuildings({ excludePositions }: { excludePositions?: [number, number][] }) {
   const skyscrapers = FILLER_SKYSCRAPERS.map(u => useGLTF(u).scene)
-  const mediums = FILLER_MEDIUM.map(u => useGLTF(u).scene)
 
   useEffect(() => {
-    ;[...skyscrapers, ...mediums].forEach((s) => { enableShadows(s); enableWindowGlow(s, '#ffeeaa') })
+    skyscrapers.forEach((s) => { enableShadows(s); enableWindowGlow(s, '#ffeeaa') })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const placements = useMemo(() => {
@@ -241,28 +228,23 @@ function FillerBuildings({ excludePositions }: { excludePositions?: [number, num
           return dx * dx + dz * dz < W * W
         })) { idx += 4; continue }
 
-        const dist = Math.max(Math.abs(cx), Math.abs(cz))
-        // Linear gradient: 100% skyscraper at center → 60% at max edge
-        const skyscraperProb = 1.0 - 0.4 * Math.min(dist / MAX_BLOCK_DIST, 1)
-
         for (const [ox, oz] of QUAD_OFFSETS) {
-          const tall = posHash(cx + ox, cz + oz) < skyscraperProb
           out.push({
             pos: [cx + ox, 0, cz + oz],
-            scene: tall ? skyscrapers[idx % skyscrapers.length] : mediums[idx % mediums.length],
-            tall,
+            scene: skyscrapers[idx % skyscrapers.length],
+            tall: true,
           })
           idx++
         }
       }
     }
     return out
-  }, [skyscrapers, mediums, excludePositions])
+  }, [skyscrapers, excludePositions])
 
   return (
     <group>
       {placements.map((p, i) => (
-        <Clone key={i} object={p.scene} position={p.pos} scale={p.tall ? FILLER_SCALE : FILLER_MEDIUM_SCALE} />
+        <Clone key={i} object={p.scene} position={p.pos} scale={FILLER_SCALE} />
       ))}
     </group>
   )
@@ -500,17 +482,11 @@ export default function CityScene() {
         return bt.includes(type) || type.includes(bt)
       })
 
-    if (interior) {
-      const p = playerPos.current
-      setCityPlayerPosition([p.x, p.y, p.z])
-      setCurrentInterior(interior)
-      setPhase('interior')
-      return
-    }
-    if (npcId) {
-      const npc = currentCase.npcs.find((n) => n.id === npcId)
-      if (npc) setActiveNPC(npc)
-    }
+    const resolved = interior ?? { building_type: type, name: type, atmosphere: 'dark and quiet', description: '', objects: [] }
+    const p = playerPos.current
+    setCityPlayerPosition([p.x, p.y, p.z])
+    setCurrentInterior(resolved)
+    setPhase('interior')
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps

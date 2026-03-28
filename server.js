@@ -18,6 +18,9 @@ const API_KEY = process.env.GEMINI_API_KEY
 if (!API_KEY) { console.error('Missing GEMINI_API_KEY in .env'); process.exit(1) }
 
 const server = http.createServer(async (req, res) => {
+  // Let the ws library handle WebSocket upgrade requests
+  if (req.headers.upgrade?.toLowerCase() === 'websocket') return
+
   if (req.method === 'POST' && req.url === '/api/gemini') {
     let body = ''
     req.on('data', (chunk) => body += chunk)

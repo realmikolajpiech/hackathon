@@ -15,6 +15,8 @@ export class GeminiLiveSession {
   private audioContext: AudioContext | null = null
   private audioQueue: ArrayBuffer[] = []
   private isPlaying = false
+  private isSetupComplete = false
+  private pendingAudio: ArrayBuffer[] = []
 
   constructor(config: LiveSessionConfig) {
     this.config = config
@@ -32,7 +34,7 @@ export class GeminiLiveSession {
       // Send setup message
       const setupMsg = {
         setup: {
-          model: 'models/gemini-3.1-flash-live-preview',
+          model: 'models/gemini-2.0-flash-live-001',
           generation_config: {
             response_modalities: ['AUDIO'],
             speech_config: {
@@ -59,7 +61,13 @@ export class GeminiLiveSession {
         const msg = JSON.parse(text)
 
         if (msg.setupComplete) {
+          this.isSetupComplete = true
           this.config.onStatusChange('connected')
+          // Flush any audio buffered before setup completed
+          for (const chunk of this.pendingAudio) {
+            this.sendAudio(chunk)
+          }
+          this.pendingAudio = []
         }
 
         if (msg.serverContent?.modelTurn?.parts) {
@@ -90,6 +98,10 @@ export class GeminiLiveSession {
 
   sendAudio(pcmData: ArrayBuffer) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
+    if (!this.isSetupComplete) {
+      this.pendingAudio.push(pcmData)
+      return
+    }
     const base64 = arrayBufferToBase64(pcmData)
     const msg = {
       realtimeInput: {
@@ -157,6 +169,8 @@ export class GeminiLiveSession {
     this.audioContext = null
     this.audioQueue = []
     this.isPlaying = false
+    this.isSetupComplete = false
+    this.pendingAudio = []
   }
 }
 
