@@ -30,7 +30,7 @@ export class GeminiLiveSession {
       // Send setup message
       const setupMsg = {
         setup: {
-          model: 'models/gemini-3.1-flash-lite-preview',
+          model: 'models/gemini-3.1-flash-live-preview',
           generation_config: {
             response_modalities: ['AUDIO'],
             speech_config: {

@@ -3,6 +3,7 @@ import 'dotenv/config'
 import http from 'http'
 import fs from 'fs'
 import path from 'path'
+import { WebSocketServer, WebSocket as WS } from 'ws'
 
 const LOG_DIR = '/tmp/game_logs'
 fs.mkdirSync(LOG_DIR, { recursive: true })
@@ -53,3 +54,33 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(3001, () => console.log('Dev proxy on :3001'))
+
+// WebSocket proxy for Gemini Live API
+const wss = new WebSocketServer({ server, path: '/api/live' })
+
+wss.on('connection', (clientWs) => {
+  const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${API_KEY}`
+  const geminiWs = new WS(geminiUrl)
+
+  geminiWs.on('open', () => {
+    console.log('[Live] Connected to Gemini Live')
+  })
+
+  geminiWs.on('message', (data) => {
+    if (clientWs.readyState === WS.OPEN) clientWs.send(data)
+  })
+
+  geminiWs.on('error', (err) => {
+    console.error('[Live] Gemini error:', err.message)
+    clientWs.close()
+  })
+
+  geminiWs.on('close', () => clientWs.close())
+
+  clientWs.on('message', (data) => {
+    if (geminiWs.readyState === WS.OPEN) geminiWs.send(data)
+  })
+
+  clientWs.on('close', () => geminiWs.close())
+  clientWs.on('error', () => geminiWs.close())
+})

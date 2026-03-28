@@ -6,14 +6,14 @@ Return ONLY valid JSON with this exact structure:
 {
   "city": {
     "name": "string — a noir city name",
-    "atmosphere": "2-3 sentences describing the city at night — rain, neon, corruption, fog"
+    "atmosphere": "2-3 plain sentences describing the city at night. Concrete details only — what you see, hear, smell. No metaphors."
   },
   "cases": [
     {
       "id": "case_1",
       "title": "string",
       "type": "murder",
-      "hook": "One gripping sentence hinting at the mystery without spoiling it",
+      "hook": "One plain sentence stating what happened and what's suspicious about it. E.g. 'A dock worker was found dead in a locked office with no sign of forced entry.'",
       "victim_name": "string",
       "location": "string — a specific place in the city"
     },
@@ -21,7 +21,7 @@ Return ONLY valid JSON with this exact structure:
       "id": "case_2",
       "title": "string",
       "type": "theft",
-      "hook": "...",
+      "hook": "One plain sentence stating what happened and what's suspicious. No poetic language.",
       "victim_name": "string",
       "location": "string"
     },
@@ -29,7 +29,7 @@ Return ONLY valid JSON with this exact structure:
       "id": "case_3",
       "title": "string",
       "type": "kidnapping",
-      "hook": "...",
+      "hook": "One plain sentence stating what happened and what's suspicious. No poetic language.",
       "victim_name": "string",
       "location": "string"
     },
@@ -37,7 +37,7 @@ Return ONLY valid JSON with this exact structure:
       "id": "case_4",
       "title": "string",
       "type": "disappearance",
-      "hook": "...",
+      "hook": "One plain sentence stating what happened and what's suspicious. No poetic language.",
       "victim_name": "string",
       "location": "string"
     }
@@ -45,9 +45,10 @@ Return ONLY valid JSON with this exact structure:
 }
 
 Rules:
-- City must feel dangerous, atmospheric, corrupt — like 1950s noir
+- Write in plain, direct language — no purple prose, no metaphors, no flowery descriptions
+- City setting is 1950s noir but described with concrete facts, not poetic atmosphere
 - Exactly 4 cases, using these types: murder, theft, kidnapping, disappearance
-- Each case hook must be unique, evocative, and not reveal the solution
+- Each case hook must state a clear suspicious situation that makes a player want to investigate
 - NO markdown, NO explanation, ONLY the JSON object`
 
 export async function generateWorld(): Promise<WorldData> {

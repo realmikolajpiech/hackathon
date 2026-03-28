@@ -1,7 +1,7 @@
 import type { CaseData, CaseSummary } from '../store/gameStore'
 
 function buildPrompt(summary: CaseSummary, cityName: string): string {
-  return `You are a detective game designer. Generate a noir case that is LOGICALLY SOLVABLE through deduction.
+  return `You are a detective game designer. Generate a noir mystery case that is LOGICALLY SOLVABLE through deduction. Write everything in plain, direct language — no purple prose, no metaphors, no poetic descriptions. Every piece of text must be immediately useful to a player trying to solve the case.
 
 City: ${cityName}
 Case Title: "${summary.title}"
@@ -34,18 +34,18 @@ Return ONLY valid JSON with this exact structure:
       "name": "string",
       "occupation": "string",
       "building": "bar",
-      "personality": "string — 3-4 adjectives and behavioral traits that affect how they speak",
+      "personality": "string — 3-4 plain adjectives describing how they talk (e.g. 'nervous, evasive, speaks in short sentences, avoids eye contact')",
       "knows": [
-        "string — a fact they reveal freely",
-        "string — a fact that NAMES another NPC or location the player should visit next",
-        "string — an observation about another suspect's behavior",
-        "string — (optional) another cross-reference"
+        "string — a concrete fact stated plainly, e.g. 'Saw Martinez leave the warehouse around 2 AM'",
+        "string — a fact that NAMES another NPC or location the player should visit next, e.g. 'Tommy Chen at the bar owes the victim money'",
+        "string — a specific observation about another suspect's behavior, e.g. 'Donna had a bruise on her wrist the day after the murder'",
+        "string — (optional) another concrete cross-reference"
       ],
       "hides": [
-        "string — a secret they only reveal under pressure",
-        "string — another hidden fact that explains their suspicious behavior"
+        "string — a specific secret stated as a fact, e.g. 'Was running an illegal poker game that night, can't say so without getting arrested'",
+        "string — another concrete hidden fact, e.g. 'Owes $3,000 to loan sharks, not the victim'"
       ],
-      "alibi": "string — their specific, verifiable or falsifiable claim about whereabouts"
+      "alibi": "string — specific claim with time, place, and witness, e.g. 'Was at Rosie's Diner until 3 AM, waitress can confirm'"
     }
   ],
   "evidence_items": [
@@ -66,13 +66,13 @@ Return ONLY valid JSON with this exact structure:
     {
       "building_type": "bar",
       "name": "string — proper name of this location",
-      "atmosphere": "string — one evocative phrase",
-      "description": "string — 2-3 sentences in second person starting with 'You enter...'",
+      "atmosphere": "string — one plain phrase describing the physical feel of the place (e.g. 'Smells like cigarettes and old coffee')",
+      "description": "string — 2-3 plain sentences in second person starting with 'You enter...'. Describe what you see concretely, not poetically.",
       "objects": [
         {
           "id": "obj_1",
-          "name": "string — short object name",
-          "examine_text": "string — what the detective observes. Non-evidence objects MUST hint at another location, suspect, or contradiction to investigate.",
+          "name": "string — short plain name (e.g. 'Ashtray', 'Ledger', 'Broken lock')",
+          "examine_text": "string — one or two factual sentences about what you see and what it implies. E.g. 'Three Lucky Strike stubs. Martinez is the only one here who smokes Luckies.' Non-evidence objects must point to a specific person, place, or concrete inconsistency.",
           "evidence_id": "ev_1 — only if this object yields evidence, otherwise OMIT this field entirely"
         }
       ]
@@ -121,7 +121,7 @@ BUILDINGS & INTERIORS:
 - 5-7 objects per interior. Non-evidence objects must have examine_text that provides a hint, names another suspect, or reveals a contradiction.
 - Building positions: integer coordinates, spread at least 4 units apart, X and Z between -6 and 6, Y always 0.
 
-TONE: dark, moody, 1950s noir. Clipped prose. Moral ambiguity.
+TONE: 1950s noir setting but written like a detective's case notes — plain facts, short sentences, no flowery language. Avoid metaphors, poetic phrases, and abstract descriptions. Every sentence should give the player something concrete to act on.
 - NO markdown, NO explanation, ONLY the JSON object`
 }
 
