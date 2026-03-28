@@ -18,13 +18,27 @@ export interface Clue {
   found: boolean
 }
 
+export interface InteriorObject {
+  id: string
+  name: string
+  examine_text: string
+}
+
+export interface Interior {
+  building_type: string
+  name: string
+  atmosphere: string
+  description: string
+  objects: InteriorObject[]
+}
+
 export interface CaseData {
   case: {
     title: string
     victim: { name: string; occupation: string }
     location: string
     time_of_death: string
-    murder_weapon: string
+    murder_weapon: string | null
     motive: string
     solution: { murderer_id: string; evidence: string[] }
   }
@@ -33,6 +47,7 @@ export interface CaseData {
   map_layout: {
     buildings: Array<{ type: string; position: [number, number, number]; npc_id: string | null }>
   }
+  interiors?: Interior[]
 }
 
 export interface Message {
@@ -40,12 +55,37 @@ export interface Message {
   content: string
 }
 
-type GamePhase = 'menu' | 'office' | 'city' | 'dialogue' | 'resolution'
+export interface CaseSummary {
+  id: string
+  title: string
+  type: string
+  hook: string
+  victim_name: string
+  location: string
+}
+
+export interface WorldData {
+  city: {
+    name: string
+    atmosphere: string
+  }
+  cases: CaseSummary[]
+}
+
+type GamePhase =
+  | 'menu'
+  | 'case_selection'
+  | 'city'
+  | 'interior'
+  | 'resolution'
 
 interface GameState {
   phase: GamePhase
+  world: WorldData | null
   currentCase: CaseData | null
+  currentInterior: Interior | null
   activeNPC: NPC | null
+  examinedObjects: string[]
   notebook: {
     clues: string[]
     suspicions: string[]
@@ -56,8 +96,11 @@ interface GameState {
   voiceActive: boolean
 
   setPhase: (phase: GamePhase) => void
+  setWorld: (world: WorldData) => void
   setCurrentCase: (caseData: CaseData) => void
+  setCurrentInterior: (interior: Interior | null) => void
   setActiveNPC: (npc: NPC | null) => void
+  examineObject: (objectId: string) => void
   addNote: (note: string) => void
   addSuspicion: (suspicion: string) => void
   addMessage: (npcId: string, message: Message) => void
@@ -67,21 +110,40 @@ interface GameState {
   reset: () => void
 }
 
-export const useGameStore = create<GameState>((set) => ({
-  phase: 'menu',
+const initialState = {
+  phase: 'menu' as GamePhase,
+  world: null,
   currentCase: null,
+  currentInterior: null,
   activeNPC: null,
-  notebook: { clues: [], suspicions: [] },
-  dialogHistory: [],
+  examinedObjects: [] as string[],
+  notebook: { clues: [] as string[], suspicions: [] as string[] },
+  dialogHistory: [] as { npcId: string; messages: Message[] }[],
   accusation: null,
   isLoading: false,
   voiceActive: false,
+}
+
+export const useGameStore = create<GameState>((set) => ({
+  ...initialState,
 
   setPhase: (phase) => set({ phase }),
+  setWorld: (world) => set({ world }),
   setCurrentCase: (caseData) => set({ currentCase: caseData }),
+  setCurrentInterior: (interior) => set({ currentInterior: interior }),
   setActiveNPC: (npc) => set({ activeNPC: npc }),
-  addNote: (note) => set((s) => ({ notebook: { ...s.notebook, clues: [...s.notebook.clues, note] } })),
-  addSuspicion: (suspicion) => set((s) => ({ notebook: { ...s.notebook, suspicions: [...s.notebook.suspicions, suspicion] } })),
+  examineObject: (objectId) =>
+    set((s) => ({
+      examinedObjects: s.examinedObjects.includes(objectId)
+        ? s.examinedObjects
+        : [...s.examinedObjects, objectId],
+    })),
+  addNote: (note) =>
+    set((s) => ({ notebook: { ...s.notebook, clues: [...s.notebook.clues, note] } })),
+  addSuspicion: (suspicion) =>
+    set((s) => ({
+      notebook: { ...s.notebook, suspicions: [...s.notebook.suspicions, suspicion] },
+    })),
   addMessage: (npcId, message) =>
     set((s) => {
       const existing = s.dialogHistory.find((d) => d.npcId === npcId)
@@ -97,15 +159,5 @@ export const useGameStore = create<GameState>((set) => ({
   accuse: (npcId) => set({ accusation: npcId, phase: 'resolution' }),
   setLoading: (loading) => set({ isLoading: loading }),
   setVoiceActive: (active) => set({ voiceActive: active }),
-  reset: () =>
-    set({
-      phase: 'menu',
-      currentCase: null,
-      activeNPC: null,
-      notebook: { clues: [], suspicions: [] },
-      dialogHistory: [],
-      accusation: null,
-      isLoading: false,
-      voiceActive: false,
-    }),
+  reset: () => set({ ...initialState }),
 }))
