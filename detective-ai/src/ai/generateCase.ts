@@ -84,7 +84,8 @@ Rules:
 - NO markdown, NO explanation, ONLY the JSON object`
 }
 
-export async function generateCase(summary: CaseSummary,
+export async function generateCase(
+  summary: CaseSummary,
   cityName: string
 ): Promise<CaseData> {
   const response = await fetch('/api/gemini', {
@@ -95,20 +96,13 @@ export async function generateCase(summary: CaseSummary,
       body: {
         contents: [{ parts: [{ text: buildPrompt(summary, cityName) }] }],
         generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
-<<<<<<< HEAD
       },
     }),
   })
-  if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
-=======
-      }),
-    }
-  )
   if (!response.ok) {
     const body = await response.text().catch(() => '')
     throw new Error(`Gemini API ${response.status}: ${body}`)
   }
->>>>>>> 1f40483 (update)
   const data = await response.json()
   const raw: string = data.candidates[0].content.parts[0].text
   const start = raw.indexOf('{')

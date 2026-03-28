@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, useGLTF, Clone, Html, Text } from '@react-three/drei'
+import { OrbitControls, useGLTF, Clone, Html } from '@react-three/drei'
 import { Suspense, useState, useMemo, Component, type ReactNode } from 'react'
 import Building, { NEON_COLORS } from '../components/Building'
 import DialogBox from '../components/DialogBox'
@@ -7,9 +7,6 @@ import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
 import { useGameStore } from '../store/gameStore'
 
-<<<<<<< HEAD
-export default function CityScene() {
-=======
 class ModelErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false }
   static getDerivedStateFromError() { return { hasError: true } }
@@ -111,10 +108,7 @@ const TREE_POS: [number, number, number][] = [
 ]
 
 // ─── Main scene ─────────────────────────────────────────────────────────────
-interface CitySceneProps { apiKey: string }
-
-export default function CityScene({ apiKey }: CitySceneProps) {
->>>>>>> 1f40483 (update)
+export default function CityScene() {
   const {
     currentCase, activeNPC,
     setActiveNPC, setCurrentInterior, setPhase, world,
@@ -133,6 +127,10 @@ export default function CityScene({ apiKey }: CitySceneProps) {
     }
   }
 
+  function handleCloseDialog() {
+    setActiveNPC(null)
+  }
+
   function handleTranscript(text: string) {
     const { activeNPC: npc, addMessage } = useGameStore.getState()
     if (npc) addMessage(npc.id, { role: 'assistant', content: text })
@@ -144,7 +142,6 @@ export default function CityScene({ apiKey }: CitySceneProps) {
         camera={{ position: [18, 18, 18], fov: 45, near: 0.1, far: 500 }}
         shadows
       >
-        {/* Let user orbit to see the scene */}
         <OrbitControls
           target={[0, 2, 0]}
           maxPolarAngle={Math.PI / 2.5}
@@ -158,7 +155,7 @@ export default function CityScene({ apiKey }: CitySceneProps) {
         <directionalLight position={[-10, 15, -10]} intensity={0.8} color="#ff6688" />
         <hemisphereLight args={['#aaccff', '#224422', 1]} />
 
-        {/* Ground — large dark green plane */}
+        {/* Ground */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
           <planeGeometry args={[80, 80]} />
           <meshStandardMaterial color="#1a2e1a" />
@@ -167,7 +164,7 @@ export default function CityScene({ apiKey }: CitySceneProps) {
         {/* Trees (procedural, always render) */}
         {TREE_POS.map((pos, i) => <Tree key={`t${i}`} position={pos} />)}
 
-        {/* Fallback building boxes (always render, no GLB needed) */}
+        {/* Fallback building boxes (always render) */}
         {buildings.map((b, i) => {
           const neonColor = NEON_COLORS[b.type] ?? '#ffffff'
           return (
@@ -179,7 +176,6 @@ export default function CityScene({ apiKey }: CitySceneProps) {
                 onClick={() => handleBuildingClick(b.npc_id, b.type)}
                 useGLB={false}
               />
-              {/* Label */}
               <group position={[b.position[0], 10, b.position[2]]}>
                 <Html center style={{ pointerEvents: 'none' }}>
                   <div style={{
@@ -199,7 +195,7 @@ export default function CityScene({ apiKey }: CitySceneProps) {
           )
         })}
 
-        {/* GLB assets — load async, isolated by error boundaries */}
+        {/* GLB assets — load async */}
         <ModelErrorBoundary>
           <Suspense fallback={null}>
             <RoadGrid />
@@ -218,7 +214,6 @@ export default function CityScene({ apiKey }: CitySceneProps) {
           </Suspense>
         </ModelErrorBoundary>
 
-        {/* GLB building overlays */}
         <ModelErrorBoundary>
           <Suspense fallback={null}>
             {buildings.map((b, i) => (
@@ -235,7 +230,7 @@ export default function CityScene({ apiKey }: CitySceneProps) {
         </ModelErrorBoundary>
       </Canvas>
 
-      {/* ── HUD ── */}
+      {/* HUD */}
       <div style={{
         position: 'fixed', top: 16, left: 16,
         fontFamily: '"Courier New", monospace',
@@ -288,13 +283,8 @@ export default function CityScene({ apiKey }: CitySceneProps) {
 
       {activeNPC && (
         <>
-<<<<<<< HEAD
           <DialogBox onClose={handleCloseDialog} />
           <VoiceUI onTranscript={handleTranscript} />
-=======
-          <DialogBox apiKey={apiKey} onClose={() => setActiveNPC(null)} />
-          <VoiceUI apiKey={apiKey} onTranscript={handleTranscript} />
->>>>>>> 1f40483 (update)
         </>
       )}
       {showNotebook && <Notebook onClose={() => setShowNotebook(false)} />}
