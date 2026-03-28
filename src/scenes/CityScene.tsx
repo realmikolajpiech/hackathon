@@ -674,11 +674,6 @@ export default function CityScene() {
           color: '#d4b483', padding: '6px 14px',
           cursor: 'pointer', fontFamily: '"Courier New", monospace', fontSize: 11, letterSpacing: 1,
         }}>⚖ OFFICE</button>
-        <button onClick={() => setPhase('case_selection')} style={{
-          background: '#0a0a1a', border: '1px solid #2a2a3a',
-          color: '#555', padding: '6px 14px',
-          cursor: 'pointer', fontFamily: '"Courier New", monospace', fontSize: 11,
-        }}>← CASES</button>
       </div>
 
       <div style={{
