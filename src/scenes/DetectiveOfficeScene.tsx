@@ -2,10 +2,12 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { Html, useGLTF } from '@react-three/drei'
 import { useState, useRef, useMemo, useEffect, Suspense } from 'react'
 import * as THREE from 'three'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import FollowCamera from '../components/FollowCamera'
 import { useGameStore } from '../store/gameStore'
 import { generateWorld } from '../ai/generateWorld'
 import { generateCase } from '../ai/generateCase'
+import { resolveCollisions, type Collider } from '../utils/collisions'
 
 // ─── Preload player model ────────────────────────────────────────────────────
 useGLTF.preload('/models/characters/character-male-a.glb')
@@ -194,17 +196,54 @@ function OfficeRoom() {
   )
 }
 
+// ─── Office colliders ─────────────────────────────────────────────────────────
+
+const OFFICE_COLLIDERS: Collider[] = [
+  { x: 3.0,  z: -2.0, hw: 1.5, hd: 0.9 },   // desk
+  { x: -4.2, z: -3.0, hw: 0.4, hd: 0.5 },   // filing cabinet
+  { x: -4.2, z:  1.0, hw: 0.4, hd: 1.2 },   // bookshelf
+]
+
 // ─── Player ───────────────────────────────────────────────────────────────────
 
-const PLAYER_SPEED = 5
+const PLAYER_SPEED = 3.2
 const ROOM_BOUND = 4.0
 
 function OfficePlayer({ onPositionChange }: { onPositionChange: (pos: THREE.Vector3) => void }) {
   const { scene } = useGLTF('/models/characters/character-male-a.glb')
-  const cloned = useMemo(() => scene.clone(true), [scene])
+  const cloned = useMemo(() => {
+    const c = SkeletonUtils.clone(scene)
+    c.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+      }
+    })
+    return c
+  }, [scene])
+
   const groupRef = useRef<THREE.Group>(null)
   const keys = useRef({ w: false, a: false, s: false, d: false })
   const facingAngle = useRef(Math.PI)
+  const walkPhase = useRef(0)
+  const armLeft = useRef<THREE.Bone | null>(null)
+  const armRight = useRef<THREE.Bone | null>(null)
+  const legLeft = useRef<THREE.Bone | null>(null)
+  const legRight = useRef<THREE.Bone | null>(null)
+
+  useEffect(() => {
+    cloned.traverse((child) => {
+      if (!(child as THREE.Bone).isBone) return
+      switch (child.name) {
+        case 'arm-left':  armLeft.current  = child as THREE.Bone; break
+        case 'arm-right': armRight.current = child as THREE.Bone; break
+        case 'leg-left':  legLeft.current  = child as THREE.Bone; break
+        case 'leg-right': legRight.current = child as THREE.Bone; break
+      }
+    })
+    if (armLeft.current)  { armLeft.current.rotation.z  = -0.8; armLeft.current.scale.setScalar(0.6) }
+    if (armRight.current) { armRight.current.rotation.z =  0.8; armRight.current.scale.setScalar(0.6) }
+  }, [cloned])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -232,19 +271,43 @@ function OfficePlayer({ onPositionChange }: { onPositionChange: (pos: THREE.Vect
     if (a) { dir.x -= 1; dir.z += 1 }
     if (d) { dir.x += 1; dir.z -= 1 }
 
-    if (dir.lengthSq() > 0) {
+    const isMoving = dir.lengthSq() > 0
+
+    if (isMoving) {
       dir.normalize()
-      const next = groupRef.current.position.clone().addScaledVector(dir, PLAYER_SPEED * delta)
-      next.x = Math.max(-ROOM_BOUND, Math.min(ROOM_BOUND, next.x))
-      next.z = Math.max(-ROOM_BOUND, Math.min(ROOM_BOUND, next.z))
-      groupRef.current.position.copy(next)
+      groupRef.current.position.addScaledVector(dir, PLAYER_SPEED * delta)
       facingAngle.current = Math.atan2(dir.x, dir.z)
     }
+
+    // Room bounds
+    groupRef.current.position.x = THREE.MathUtils.clamp(groupRef.current.position.x, -ROOM_BOUND, ROOM_BOUND)
+    groupRef.current.position.z = THREE.MathUtils.clamp(groupRef.current.position.z, -ROOM_BOUND, ROOM_BOUND)
+
+    // Collisions
+    const [rx, rz] = resolveCollisions(groupRef.current.position.x, groupRef.current.position.z, OFFICE_COLLIDERS)
+    groupRef.current.position.x = rx
+    groupRef.current.position.z = rz
 
     const cur = groupRef.current.rotation.y
     let diff = facingAngle.current - cur
     diff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI
     groupRef.current.rotation.y += diff * Math.min(1, 12 * delta)
+
+    // Skeletal animation
+    if (isMoving) {
+      walkPhase.current += delta * 12
+      const phase = walkPhase.current
+      if (legLeft.current)  legLeft.current.rotation.x  =  Math.sin(phase) * 0.45
+      if (legRight.current) legRight.current.rotation.x = -Math.sin(phase) * 0.45
+      if (armLeft.current)  armLeft.current.rotation.x  = -Math.sin(phase) * 0.35
+      if (armRight.current) armRight.current.rotation.x =  Math.sin(phase) * 0.35
+    } else {
+      if (legLeft.current)  legLeft.current.rotation.x  *= 0.85
+      if (legRight.current) legRight.current.rotation.x *= 0.85
+      if (armLeft.current)  armLeft.current.rotation.x  *= 0.85
+      if (armRight.current) armRight.current.rotation.x *= 0.85
+    }
+
     onPositionChange(groupRef.current.position)
   })
 

@@ -2,7 +2,7 @@ import { Canvas, useFrame, extend } from '@react-three/fiber'
 import { useGLTF, Clone, OrbitControls, Sky, Effects } from '@react-three/drei'
 import { Suspense, useState, useRef, useMemo, useEffect, Component, type ReactNode } from 'react'
 import * as THREE from 'three'
-import { OrbitControls as OrbitControlsImpl, UnrealBloomPass, FilmPass } from 'three-stdlib'
+import { OrbitControls as OrbitControlsImpl, UnrealBloomPass } from 'three-stdlib'
 import Building from '../components/Building'
 import Player from '../components/Player'
 import FollowCamera from '../components/FollowCamera'
@@ -14,13 +14,12 @@ import { useGameStore } from '../store/gameStore'
 import { WORLD_SCALE, SCALE } from '../config/modelScales'
 import type { Collider } from '../utils/collisions'
 
-extend({ UnrealBloomPass, FilmPass })
+extend({ UnrealBloomPass })
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 declare module '@react-three/fiber' {
   interface ThreeElements {
     unrealBloomPass: object
-    filmPass: object
   }
 }
 
@@ -45,10 +44,9 @@ function enableWindowGlow(obj: THREE.Object3D, glowColor = '#ffeeaa') {
       const { r, g, b } = mat.color
       const brightness = (r + g + b) / 3
       // Dark materials (0.03–0.32 brightness) are window/glass panels — make them glow
-      if (brightness > 0.03 && brightness < 0.32) {
+      if (brightness > 0.03 && brightness < 0.18) {
         mat.emissive = new THREE.Color(glowColor)
-        mat.emissiveIntensity = 1.8
-        mat.toneMapped = false
+        mat.emissiveIntensity = 1.2
       }
     })
   })
@@ -64,16 +62,17 @@ const W = WORLD_SCALE
 
 // ─── Road layout ────────────────────────────────────────────────────────────
 const ROAD_SPACING = 3  // tiles between intersections
-const GRID_BLOCKS = 2
+const GRID_BLOCKS = 3
 const EXT = ROAD_SPACING * GRID_BLOCKS
 
-// Pre-compute valid block centers (between road lanes)
+// Pre-compute valid block centers (true midpoint between road lanes)
+const BLOCK_HALF = (ROAD_SPACING - 2) / 2
 const BLOCK_CENTERS: [number, number][] = []
 for (let bx = -EXT + 1; bx < EXT; bx += ROAD_SPACING) {
   for (let bz = -EXT + 1; bz < EXT; bz += ROAD_SPACING) {
     BLOCK_CENTERS.push([
-      (bx + (ROAD_SPACING - 1) / 2) * W,
-      (bz + (ROAD_SPACING - 1) / 2) * W,
+      (bx + BLOCK_HALF) * W,
+      (bz + BLOCK_HALF) * W,
     ])
   }
 }
@@ -120,74 +119,95 @@ const FILLER_SMALL = [
 
 [...ROAD_MODELS, ...FILLER_SKYSCRAPERS, ...FILLER_SMALL].forEach(u => useGLTF.preload(u))
 
+function extractFirstMesh(scene: THREE.Object3D): THREE.Mesh | null {
+  let found: THREE.Mesh | null = null
+  scene.traverse((c) => { if (!found && (c as THREE.Mesh).isMesh) found = c as THREE.Mesh })
+  return found
+}
+
+const _obj = new THREE.Object3D()
+
 function RoadGrid() {
   const { scene: cross }    = useGLTF('/models/roads/road-crossroad.glb')
   const { scene: straight } = useGLTF('/models/roads/road-straight.glb')
 
-  useEffect(() => {
-    enableShadows(cross)
-    enableShadows(straight)
-    // Darken bright sidewalk/curb materials so they don't bloom under lamp lights
-    ;[cross, straight].forEach((obj) => {
-      obj.traverse((child) => {
-        const mesh = child as THREE.Mesh
-        if (!mesh.isMesh) return
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-        mats.forEach((m) => {
-          const mat = m as THREE.MeshStandardMaterial
-          if (!mat.color) return
-          const { r, g, b } = mat.color
-          const brightness = (r + g + b) / 3
-          if (brightness > 0.5) {
-            mat.color.multiplyScalar(0.25)
-            mat.roughness = 1
-            mat.metalness = 0
-            mat.needsUpdate = true
-          }
-        })
-      })
-    })
-  }, [cross, straight])
+  const crossMesh = useMemo(() => extractFirstMesh(cross), [cross])
+  const straightMesh = useMemo(() => extractFirstMesh(straight), [straight])
 
-  const tiles = useMemo(() => {
-    const out: { pos: [number, number, number]; rot: number; obj: 'cross' | 'straight' }[] = []
+  const { crossMatrices, straightMatrices } = useMemo(() => {
+    const cm: THREE.Matrix4[] = []
+    const sm: THREE.Matrix4[] = []
 
-    // Crossroad intersections
     for (let x = -EXT; x <= EXT; x += ROAD_SPACING)
-      for (let z = -EXT; z <= EXT; z += ROAD_SPACING)
-        out.push({ pos: [x * W, 0, z * W], rot: 0, obj: 'cross' })
+      for (let z = -EXT; z <= EXT; z += ROAD_SPACING) {
+        _obj.position.set(x * W, 0, z * W)
+        _obj.rotation.set(0, 0, 0)
+        _obj.scale.setScalar(SCALE.road)
+        _obj.updateMatrix()
+        cm.push(_obj.matrix.clone())
+      }
 
-    // Straight roads along Z axis (vertical) — rotate 90° so lanes face Z
     for (let x = -EXT; x <= EXT; x += ROAD_SPACING)
       for (let z = -EXT; z < EXT; z += ROAD_SPACING)
-        for (let f = 1; f < ROAD_SPACING; f++)
-          out.push({ pos: [x * W, 0, (z + f) * W], rot: Math.PI / 2, obj: 'straight' })
+        for (let f = 1; f < ROAD_SPACING; f++) {
+          _obj.position.set(x * W, 0, (z + f) * W)
+          _obj.rotation.set(0, Math.PI / 2, 0)
+          _obj.scale.setScalar(SCALE.road)
+          _obj.updateMatrix()
+          sm.push(_obj.matrix.clone())
+        }
 
-    // Straight roads along X axis (horizontal) — no rotation, lanes face X
     for (let z = -EXT; z <= EXT; z += ROAD_SPACING)
       for (let x = -EXT; x < EXT; x += ROAD_SPACING)
-        for (let f = 1; f < ROAD_SPACING; f++)
-          out.push({ pos: [(x + f) * W, 0, z * W], rot: 0, obj: 'straight' })
+        for (let f = 1; f < ROAD_SPACING; f++) {
+          _obj.position.set((x + f) * W, 0, z * W)
+          _obj.rotation.set(0, 0, 0)
+          _obj.scale.setScalar(SCALE.road)
+          _obj.updateMatrix()
+          sm.push(_obj.matrix.clone())
+        }
 
-    return out
+    return { crossMatrices: cm, straightMatrices: sm }
   }, [])
+
+  const crossInst = useMemo(() => {
+    if (!crossMesh) return null
+    const inst = new THREE.InstancedMesh(crossMesh.geometry, crossMesh.material, crossMatrices.length)
+    crossMatrices.forEach((m, i) => inst.setMatrixAt(i, m))
+    inst.instanceMatrix.needsUpdate = true
+    inst.receiveShadow = true
+    inst.frustumCulled = false
+    return inst
+  }, [crossMesh, crossMatrices])
+
+  const straightInst = useMemo(() => {
+    if (!straightMesh) return null
+    const inst = new THREE.InstancedMesh(straightMesh.geometry, straightMesh.material, straightMatrices.length)
+    straightMatrices.forEach((m, i) => inst.setMatrixAt(i, m))
+    inst.instanceMatrix.needsUpdate = true
+    inst.receiveShadow = true
+    inst.frustumCulled = false
+    return inst
+  }, [straightMesh, straightMatrices])
 
   return (
     <group>
-      {tiles.map((t, i) => (
-        <Clone
-          key={i}
-          object={t.obj === 'cross' ? cross : straight}
-          position={t.pos}
-          scale={SCALE.road}
-          rotation={[0, t.rot, 0]}
-        />
-      ))}
+      {crossInst && <primitive object={crossInst} />}
+      {straightInst && <primitive object={straightInst} />}
     </group>
   )
 }
 
-// ─── Filler buildings ───────────────────────────────────────────────────────
+// ─── Filler buildings (4 per block) ─────────────────────────────────────────
+const FILLER_SCALE = WORLD_SCALE * 0.38
+const QUAD_OFF = W * 0.38
+const QUAD_OFFSETS: [number, number][] = [
+  [-QUAD_OFF, -QUAD_OFF],
+  [-QUAD_OFF,  QUAD_OFF],
+  [ QUAD_OFF, -QUAD_OFF],
+  [ QUAD_OFF,  QUAD_OFF],
+]
+
 function FillerBuildings({ excludePositions }: { excludePositions?: [number, number][] }) {
   const skyscrapers = FILLER_SKYSCRAPERS.map(u => useGLTF(u).scene)
   const smalls = FILLER_SMALL.map(u => useGLTF(u).scene)
@@ -197,24 +217,29 @@ function FillerBuildings({ excludePositions }: { excludePositions?: [number, num
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const placements = useMemo(() => {
-    const out: { pos: [number, number, number]; scene: THREE.Group; rot: number }[] = []
+    const out: { pos: [number, number, number]; scene: THREE.Group }[] = []
     let idx = 0
 
     for (let bx = -EXT + 1; bx < EXT; bx += ROAD_SPACING) {
       for (let bz = -EXT + 1; bz < EXT; bz += ROAD_SPACING) {
-        const cx = (bx + (ROAD_SPACING - 1) / 2) * W
-        const cz = (bz + (ROAD_SPACING - 1) / 2) * W
+        const cx = (bx + BLOCK_HALF) * W
+        const cz = (bz + BLOCK_HALF) * W
 
-        // Skip blocks occupied by story buildings
         if (excludePositions?.some(([ex, ez]) => {
           const dx = cx - ex, dz = cz - ez
           return dx * dx + dz * dz < W * W
-        })) { idx++; continue }
+        })) { idx += 4; continue }
 
         const dist = Math.max(Math.abs(cx), Math.abs(cz))
         const pool = dist < ROAD_SPACING * W * 1.2 ? skyscrapers : smalls
-        out.push({ pos: [cx, 0, cz], scene: pool[idx % pool.length], rot: (idx * Math.PI / 2) })
-        idx++
+
+        for (const [ox, oz] of QUAD_OFFSETS) {
+          out.push({
+            pos: [cx + ox, 0, cz + oz],
+            scene: pool[idx % pool.length],
+          })
+          idx++
+        }
       }
     }
     return out
@@ -223,102 +248,82 @@ function FillerBuildings({ excludePositions }: { excludePositions?: [number, num
   return (
     <group>
       {placements.map((p, i) => (
-        <Clone key={i} object={p.scene} position={p.pos} rotation={[0, p.rot, 0]} scale={SCALE.fillerBuilding} />
+        <Clone key={i} object={p.scene} position={p.pos} scale={FILLER_SCALE} />
       ))}
     </group>
   )
 }
 
-// Spotlight that points straight down — needs a scene target object
-function LampSpot({ px, pz }: { px: number; pz: number }) {
-  const spotRef = useRef<THREE.SpotLight>(null)
-  const targetRef = useRef<THREE.Group>(null)
-  useEffect(() => {
-    if (spotRef.current && targetRef.current) {
-      spotRef.current.target = targetRef.current
-      targetRef.current.updateMatrixWorld()
-    }
-  }, [])
-  // Arm extends in -Z direction; head is at Z offset -1.275 (model bbox * scale 6)
-  const hx = px
-  const hz = pz - 1.3
-  const hy = 3.4
-  return (
-    <>
-      {/* Target directly below lamp head on the ground */}
-      <group ref={targetRef} position={[hx, 0, hz]} />
-      <spotLight
-        ref={spotRef}
-        position={[hx, hy, hz]}
-        angle={Math.PI / 2.2}
-        penumbra={0.7}
-        intensity={60}
-        distance={14}
-        decay={1.5}
-        color="#ffdd88"
-        castShadow={false}
-      />
-      {/* Point light to illuminate the pole from close range */}
-      <pointLight position={[hx, hy, hz]} intensity={8} distance={5} decay={2} color="#ffdd88" />
-    </>
-  )
-}
+// ─── Street lamps (models only, lights are proximity-based) ─────────────────
 
-function mattifyLamp(root: THREE.Object3D) {
-  root.traverse((obj: any) => {
-    if (obj.isMesh && obj.material) {
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
-      mats.forEach((m: any) => {
-        const { r, g, b } = m.color ?? { r: 0.5, g: 0.5, b: 0.5 }
-        const brightness = (r + g + b) / 3
-        if (brightness > 0.4) {
-          // Lamp head / lens — make it glow warm yellow
-          m.color = new THREE.Color('#ffdd88')
-          m.emissive = new THREE.Color('#ffaa33')
-          m.emissiveIntensity = 3
-          m.toneMapped = false
-        } else {
-          // Pole / arm — dark metal, no glow
-          m.color = new THREE.Color('#555555')
-          m.emissive = new THREE.Color(0, 0, 0)
-          m.emissiveIntensity = 0
-        }
-        m.roughness = 0.7
-        m.metalness = 0.3
-        m.envMapIntensity = 0
-        m.needsUpdate = true
-      })
+const LAMP_EDGE = W * 0.45
+const ALL_LAMP_POS: { pos: [number, number, number]; rot: number }[] = []
+for (let x = -EXT; x <= EXT; x += ROAD_SPACING)
+  for (let z = -EXT; z <= EXT; z += ROAD_SPACING)
+    if ((Math.abs(x) + Math.abs(z)) % (ROAD_SPACING * 2) === 0) {
+      ALL_LAMP_POS.push({ pos: [x * W + LAMP_EDGE, 0, z * W + LAMP_EDGE], rot: 0 })
+      ALL_LAMP_POS.push({ pos: [x * W - LAMP_EDGE, 0, z * W - LAMP_EDGE], rot: Math.PI })
     }
-  })
-}
 
-// ─── Street lamps ───────────────────────────────────────────────────────────
 function GLBLamps() {
   const { scene: lamp } = useGLTF('/models/roads/streetlamp.glb')
-  const groupRef = useRef<THREE.Group>(null)
-  const positions = useMemo(() => {
-    const out: [number, number, number][] = []
-    for (let x = -EXT; x <= EXT; x += ROAD_SPACING)
-      for (let z = -EXT; z <= EXT; z += ROAD_SPACING)
-        if ((Math.abs(x) + Math.abs(z)) % (ROAD_SPACING * 2) === 0)
-          out.push([x * W + 3.2, 0, z * W + 3.2])
-    return out
-  }, [])
+  const lampMesh = useMemo(() => extractFirstMesh(lamp), [lamp])
 
-  useEffect(() => {
-    enableShadows(lamp)
-    mattifyLamp(lamp)
-    // Also traverse actual rendered group in case Clone deep-copies materials
-    if (groupRef.current) mattifyLamp(groupRef.current)
-  }, [lamp])
+  const inst = useMemo(() => {
+    if (!lampMesh) return null
+    const im = new THREE.InstancedMesh(lampMesh.geometry, lampMesh.material, ALL_LAMP_POS.length)
+    ALL_LAMP_POS.forEach((l, i) => {
+      _obj.position.set(l.pos[0], l.pos[1], l.pos[2])
+      _obj.rotation.set(0, l.rot, 0)
+      _obj.scale.setScalar(SCALE.lamp)
+      _obj.updateMatrix()
+      im.setMatrixAt(i, _obj.matrix)
+    })
+    im.instanceMatrix.needsUpdate = true
+    im.frustumCulled = false
+    return im
+  }, [lampMesh])
+
+  return inst ? <primitive object={inst} /> : null
+}
+
+const MAX_ACTIVE_LIGHTS = 6
+
+function ProximityLights({ playerPos }: { playerPos: React.MutableRefObject<THREE.Vector3> }) {
+  const lightsRef = useRef<THREE.PointLight[]>([])
+  const groupRef = useRef<THREE.Group>(null)
+
+  useFrame(() => {
+    const pp = playerPos.current
+    const sorted = ALL_LAMP_POS
+      .map((l) => ({ l, d: (pp.x - l.pos[0]) ** 2 + (pp.z - l.pos[2]) ** 2 }))
+      .sort((a, b) => a.d - b.d)
+
+    for (let i = 0; i < MAX_ACTIVE_LIGHTS; i++) {
+      const light = lightsRef.current[i]
+      if (!light) continue
+      if (i < sorted.length) {
+        const lp = sorted[i].l.pos
+        light.position.set(lp[0], SCALE.lamp * 0.55, lp[2])
+        light.visible = true
+      } else {
+        light.visible = false
+      }
+    }
+  })
 
   return (
     <group ref={groupRef}>
-      {positions.map((pos, i) => (
-        <group key={i}>
-          <Clone object={lamp} position={pos} scale={SCALE.lamp} />
-          <LampSpot px={pos[0]} pz={pos[2]} />
-        </group>
+      {Array.from({ length: MAX_ACTIVE_LIGHTS }).map((_, i) => (
+        <pointLight
+          key={i}
+          ref={(el) => { if (el) lightsRef.current[i] = el }}
+          color="#ffdd88"
+          intensity={20}
+          distance={16}
+          decay={1.8}
+          visible={false}
+        />
       ))}
     </group>
   )
@@ -330,7 +335,7 @@ function ParkedCars() {
   const { scene: sedan }  = useGLTF('/models/cars/sedan-sports.glb')
   const { scene: taxi }   = useGLTF('/models/cars/taxi.glb')
 
-  useEffect(() => { enableShadows(police); enableShadows(sedan); enableShadows(taxi) }, [police, sedan, taxi])
+  // Cars don't cast shadows — saves a lot of GPU work
 
   return (
     <group>
@@ -401,16 +406,21 @@ export default function CityScene() {
   if (!currentCase) return null
   const rawBuildings = currentCase.map_layout.buildings
 
-  // Validate story building positions: snap to block centers if on a road
-  const buildings = useMemo(() =>
-    rawBuildings.map((b) => {
-      if (isOnRoad(b.position[0], b.position[2])) {
-        const [sx, sz] = snapToBlock(b.position[0], b.position[2])
-        return { ...b, position: [sx, b.position[1], sz] as [number, number, number] }
-      }
-      return b
-    }),
-  [rawBuildings])
+  // Snap ALL story buildings to valid block centers (never on roads).
+  // Each building gets the nearest free block center to avoid overlaps.
+  const buildings = useMemo(() => {
+    const used = new Set<string>()
+    return rawBuildings.map((b) => {
+      const sorted = [...BLOCK_CENTERS].sort((a, c) => {
+        const da = (b.position[0] - a[0]) ** 2 + (b.position[2] - a[1]) ** 2
+        const dc = (b.position[0] - c[0]) ** 2 + (b.position[2] - c[1]) ** 2
+        return da - dc
+      })
+      const best = sorted.find((bc) => !used.has(`${bc[0]},${bc[1]}`)) ?? sorted[0]
+      used.add(`${best[0]},${best[1]}`)
+      return { ...b, position: [best[0], b.position[1], best[1]] as [number, number, number] }
+    })
+  }, [rawBuildings])
 
   // Positions of story buildings to exclude from filler generation
   const storyBlockPositions = useMemo<[number, number][]>(() =>
@@ -421,35 +431,43 @@ export default function CityScene() {
   const cityColliders = useMemo<Collider[]>(() => {
     const out: Collider[] = []
 
-    // Filler buildings
+    // Filler buildings (4 per block)
+    const fhs = FILLER_SCALE * 0.45
     for (let bx = -EXT + 1; bx < EXT; bx += ROAD_SPACING) {
       for (let bz = -EXT + 1; bz < EXT; bz += ROAD_SPACING) {
-        const cx = (bx + (ROAD_SPACING - 1) / 2) * W
-        const cz = (bz + (ROAD_SPACING - 1) / 2) * W
+        const cx = (bx + BLOCK_HALF) * W
+        const cz = (bz + BLOCK_HALF) * W
         const isExcluded = storyBlockPositions.some(([ex, ez]) => {
           const dx = cx - ex, dz = cz - ez
           return dx * dx + dz * dz < W * W
         })
-        if (!isExcluded) out.push({ x: cx, z: cz, radius: SCALE.fillerBuilding * 0.45 })
+        if (!isExcluded) {
+          for (const [ox, oz] of QUAD_OFFSETS)
+            out.push({ x: cx + ox, z: cz + oz, hw: fhs, hd: fhs })
+        }
       }
     }
 
     // Story buildings
+    const bs = SCALE.building * 0.5
     for (const b of buildings) {
-      out.push({ x: b.position[0], z: b.position[2], radius: SCALE.building * 0.45 })
+      out.push({ x: b.position[0], z: b.position[2], hw: bs, hd: bs })
     }
 
-    // Lamps
+    // Lamps (two per intersection — opposite corners)
+    const lampEdge = W * 0.45
     for (let x = -EXT; x <= EXT; x += ROAD_SPACING)
       for (let z = -EXT; z <= EXT; z += ROAD_SPACING)
-        if ((Math.abs(x) + Math.abs(z)) % (ROAD_SPACING * 2) === 0)
-          out.push({ x: x * W + 0.8, z: z * W + 0.8, radius: 0.3 })
+        if ((Math.abs(x) + Math.abs(z)) % (ROAD_SPACING * 2) === 0) {
+          out.push({ x: x * W + lampEdge, z: z * W + lampEdge, hw: 0.25, hd: 0.25 })
+          out.push({ x: x * W - lampEdge, z: z * W - lampEdge, hw: 0.25, hd: 0.25 })
+        }
 
-    // Cars
-    out.push({ x: -2, z: 7, radius: 0.7 })
-    out.push({ x: 7, z: 2, radius: 0.7 })
-    out.push({ x: 2, z: -7, radius: 0.7 })
-    out.push({ x: -7, z: -2, radius: 0.7 })
+    // Cars (longer along one axis)
+    out.push({ x: -2, z: 7, hw: 0.5, hd: 1.0 })
+    out.push({ x: 7, z: 2, hw: 1.0, hd: 0.5 })
+    out.push({ x: 2, z: -7, hw: 0.5, hd: 1.0 })
+    out.push({ x: -7, z: -2, hw: 1.0, hd: 0.5 })
 
     return out
   }, [buildings, storyBlockPositions])
@@ -495,9 +513,9 @@ export default function CityScene() {
     <div style={{ width: '100vw', height: '100vh', background: '#0a0a1a', position: 'relative' }}>
       <Canvas
         camera={{ position: [15, 15, 15], fov: 40, near: 0.1, far: 300 }}
-        gl={{ antialias: true, powerPreference: 'high-performance' }}
-        dpr={[1, 1.5]}
-        shadows="soft"
+        gl={{ antialias: false, powerPreference: 'high-performance' }}
+        dpr={[1, 1]}
+        shadows
         onCreated={(state) => { state.gl.toneMappingExposure = 0.85 }}
       >
         <OrbitControls
@@ -518,23 +536,23 @@ export default function CityScene() {
         <ProximityChecker buildings={buildings} playerPos={playerPos} onNearbyChange={handleNearbyChange} />
 
         {/* Lighting */}
-        <ambientLight intensity={0.4} color="#0a0a2a" />
+        <ambientLight intensity={0.3} color="#0a0a2a" />
         <directionalLight
           position={[-20, 30, 10]}
-          intensity={1.6}
+          intensity={1.0}
           color="#b0c8ff"
           castShadow
           shadow-mapSize={[1024, 1024]}
-          shadow-camera-near={0.5}
-          shadow-camera-far={120}
-          shadow-camera-left={-45}
-          shadow-camera-right={45}
-          shadow-camera-top={45}
-          shadow-camera-bottom={-45}
-          shadow-bias={-0.0005}
+          shadow-camera-near={1}
+          shadow-camera-far={80}
+          shadow-camera-left={-30}
+          shadow-camera-right={30}
+          shadow-camera-top={30}
+          shadow-camera-bottom={-30}
+          shadow-bias={-0.001}
         />
-        <directionalLight position={[20, 8, -15]} intensity={0.4} color="#ff6622" />
-        <hemisphereLight args={['#111133', '#1a0f00', 0.4]} />
+        <directionalLight position={[20, 8, -15]} intensity={0.25} color="#ff6622" />
+        <hemisphereLight args={['#111133', '#1a0f00', 0.3]} />
 
         {/* Sky & atmosphere */}
         <Sky
@@ -547,11 +565,11 @@ export default function CityScene() {
           mieCoefficient={0.003}
           mieDirectionalG={0.9}
         />
-        <fogExp2 attach="fog" args={['#070510', 0.018]} />
+        <fogExp2 attach="fog" args={['#070510', 0.012]} />
 
         {/* Ground */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-          <planeGeometry args={[80, 80]} />
+          <planeGeometry args={[140, 140]} />
           <meshStandardMaterial color="#0d1a0f" roughness={0.95} metalness={0.02} />
         </mesh>
 
@@ -566,6 +584,8 @@ export default function CityScene() {
             <GLBLamps />
           </Suspense>
         </ModelErrorBoundary>
+
+        <ProximityLights playerPos={playerPos} />
 
         <ModelErrorBoundary>
           <Suspense fallback={null}>
@@ -594,9 +614,7 @@ export default function CityScene() {
 
         <Effects disableGamma>
           {/* @ts-ignore */}
-          <unrealBloomPass args={[new THREE.Vector2(256, 256), 0.8, 0.5, 0.75]} />
-          {/* @ts-ignore */}
-          <filmPass args={[0.12, 0.0, 0, false]} />
+          <unrealBloomPass args={[new THREE.Vector2(128, 128), 0.25, 0.7, 0.95]} />
         </Effects>
       </Canvas>
 

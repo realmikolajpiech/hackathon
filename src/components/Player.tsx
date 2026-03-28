@@ -9,8 +9,8 @@ import { resolveCollisions, type Collider } from '../utils/collisions'
 const MODEL_URL = '/models/characters/character-male-a.glb'
 useGLTF.preload(MODEL_URL)
 
-const MOVE_SPEED = 5
-const SPRINT_MULT = 1.8
+const MOVE_SPEED = 3.2
+const SPRINT_MULT = 1.6
 const TURN_SPEED = 12
 
 export type { Collider }
@@ -67,8 +67,8 @@ function CharacterModel({ bonesRef }: { bonesRef: React.MutableRefObject<Charact
         case 'head':      bones.head = child as THREE.Bone; break
       }
     })
-    if (bones.armLeft)  bones.armLeft.rotation.z  =  1.1
-    if (bones.armRight) bones.armRight.rotation.z = -1.1
+    if (bones.armLeft)  { bones.armLeft.rotation.z  = -0.8; bones.armLeft.scale.setScalar(0.6) }
+    if (bones.armRight) { bones.armRight.rotation.z =  0.8; bones.armRight.scale.setScalar(0.6) }
     bonesRef.current = bones
   }, [clone, bonesRef])
 
@@ -178,8 +178,8 @@ export default function Player({
         const phase = walkPhase.current
         const s = SCALE.character
 
-        // Body bob
-        m.position.y = Math.abs(Math.sin(phase)) * 0.06 * s
+        // Body bob (+ base offset to keep feet above road surface)
+        m.position.y = 0.08 + Math.abs(Math.sin(phase)) * 0.06 * s
 
         // Bone animation
         if (bones.legLeft)  bones.legLeft.rotation.x  =  Math.sin(phase) * 0.45
@@ -193,8 +193,8 @@ export default function Player({
         const phase = walkPhase.current
         const s = SCALE.character
 
-        // Idle breathing
-        m.position.y = (Math.sin(phase) * 0.5 + 0.5) * 0.012 * s
+        // Idle breathing (+ base offset)
+        m.position.y = 0.08 + (Math.sin(phase) * 0.5 + 0.5) * 0.012 * s
 
         // Smoothly return bones to rest
         if (bones.legLeft)  bones.legLeft.rotation.x  *= 0.85
@@ -224,11 +224,6 @@ export default function Player({
           <CharacterModel bonesRef={bonesRef} />
         </Suspense>
       </group>
-
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <ringGeometry args={[0.3 * SCALE.character, 0.5 * SCALE.character, 24]} />
-        <meshBasicMaterial color="#00ff88" side={THREE.DoubleSide} transparent opacity={0.8} />
-      </mesh>
 
       {playerLight && (
         <pointLight position={[0, 2.5, 0]} color="#ffffee" intensity={4} distance={6} />

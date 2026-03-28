@@ -66,11 +66,9 @@ export default function Building({ type, position, npcId, onClick }: BuildingPro
         if (!mat.color) return
         const { r, g, b } = mat.color
         const brightness = (r + g + b) / 3
-        if (brightness > 0.03 && brightness < 0.5) {
-          mat.color = new THREE.Color('#aaddff')
-          mat.emissive = new THREE.Color('#aaddff')
-          mat.emissiveIntensity = 20.0
-          mat.toneMapped = false
+        if (brightness > 0.03 && brightness < 0.18) {
+          mat.emissive = new THREE.Color('#ffeeaa')
+          mat.emissiveIntensity = 1.5
         }
         if (Array.isArray(mesh.material)) {
           const idx = (mesh.material as THREE.Material[]).indexOf(m as THREE.Material)

@@ -3,30 +3,32 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import * as THREE from 'three'
 
-const LERP_SPEED = 3
-
 interface FollowCameraProps {
   target: THREE.Vector3
   controlsRef?: React.RefObject<OrbitControlsImpl | null>
 }
 
-export default function FollowCamera({ target, controlsRef }: FollowCameraProps) {
-  const { camera } = useThree()
-  const smoothTarget = useRef(new THREE.Vector3())
-  const camOffset = useRef<THREE.Vector3 | null>(null)
+export default function FollowCamera({
+  target,
+  controlsRef,
+  offset,
+}: FollowCameraProps) {
+  const _orbitOffset = useRef(new THREE.Vector3())
+  const _fixedOffset = useRef<THREE.Vector3 | null>(null)
 
-  useFrame((_, delta) => {
-    smoothTarget.current.lerp(target, Math.min(1, LERP_SPEED * delta))
-
+  useFrame((state) => {
     if (controlsRef?.current) {
-      controlsRef.current.target.copy(smoothTarget.current)
+      _orbitOffset.current.subVectors(state.camera.position, controlsRef.current.target)
+      controlsRef.current.target.copy(target)
+      state.camera.position.copy(target).add(_orbitOffset.current)
     } else {
-      // No OrbitControls (interior scene): move camera directly at a fixed offset
-      if (!camOffset.current) {
-        camOffset.current = camera.position.clone().sub(smoothTarget.current)
+      if (!_fixedOffset.current) {
+        _fixedOffset.current = offset
+          ? new THREE.Vector3(...offset)
+          : state.camera.position.clone().sub(target)
       }
-      camera.position.copy(smoothTarget.current).add(camOffset.current)
-      camera.lookAt(smoothTarget.current)
+      state.camera.position.copy(target).add(_fixedOffset.current)
+      state.camera.lookAt(target)
     }
   })
 

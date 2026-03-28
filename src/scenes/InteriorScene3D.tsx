@@ -595,7 +595,7 @@ export default function InteriorScene3D() {
     // Decor items
     const decorItems = BUILDING_DECOR[interior.building_type] ?? BUILDING_DECOR.office ?? []
     for (const item of decorItems) {
-      out.push({ x: item.pos[0], z: item.pos[2], radius: 0.35 })
+      out.push({ x: item.pos[0], z: item.pos[2], hw: 0.4, hd: 0.4 })
     }
 
     // Examinable objects
@@ -603,13 +603,13 @@ export default function InteriorScene3D() {
     objs.forEach((_, i) => {
       if (i < EXAMINE_POSITIONS.length) {
         const ep = EXAMINE_POSITIONS[i]
-        out.push({ x: ep[0], z: ep[2], radius: 0.4 })
+        out.push({ x: ep[0], z: ep[2], hw: 0.4, hd: 0.4 })
       }
     })
 
     // NPC
     if (npc) {
-      out.push({ x: 0, z: -2.8, radius: 0.4 })
+      out.push({ x: 0, z: -2.8, hw: 0.35, hd: 0.35 })
     }
 
     return out
