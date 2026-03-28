@@ -474,8 +474,9 @@ export default function CityScene() {
   }, [buildings, storyBlockPositions])
 
   function handleBuildingInteract(npcId: string | null, buildingType: string) {
+    if (!currentCase) return
     const type = buildingType.toLowerCase().trim()
-    const interiors = currentCase!.interiors ?? []
+    const interiors = currentCase.interiors ?? []
 
     // Exact match first, then partial match (handles AI inconsistencies like "police" vs "police_station")
     const interior =
@@ -487,7 +488,7 @@ export default function CityScene() {
 
     if (interior) { setCurrentInterior(interior); setPhase('interior'); return }
     if (npcId) {
-      const npc = currentCase!.npcs.find((n) => n.id === npcId)
+      const npc = currentCase.npcs.find((n) => n.id === npcId)
       if (npc) setActiveNPC(npc)
     }
   }
