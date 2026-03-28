@@ -15,6 +15,14 @@ interface PlayerProps {
 // Separate component so useGLTF suspension doesn't block movement logic
 function CharacterModel() {
   const { scene } = useGLTF(MODEL_URL)
+  useEffect(() => {
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+      }
+    })
+  }, [scene])
   return <Clone object={scene} scale={1} />
 }
 

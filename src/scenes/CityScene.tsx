@@ -1,8 +1,8 @@
-import { Canvas, useFrame } from '@react-three/fiber'
-import { useGLTF, Clone, OrbitControls } from '@react-three/drei'
+import { Canvas, useFrame, extend } from '@react-three/fiber'
+import { useGLTF, Clone, OrbitControls, Sky, Effects } from '@react-three/drei'
 import { Suspense, useState, useRef, useMemo, useEffect, Component, type ReactNode } from 'react'
 import * as THREE from 'three'
-import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import { OrbitControls as OrbitControlsImpl, UnrealBloomPass, FilmPass } from 'three-stdlib'
 import Building from '../components/Building'
 import Player from '../components/Player'
 import FollowCamera from '../components/FollowCamera'
@@ -11,6 +11,46 @@ import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
 import Inventory from '../components/Inventory'
 import { useGameStore } from '../store/gameStore'
+
+extend({ UnrealBloomPass, FilmPass })
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+declare module '@react-three/fiber' {
+  interface ThreeElements {
+    unrealBloomPass: object
+    filmPass: object
+  }
+}
+
+function enableShadows(obj: THREE.Object3D) {
+  obj.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      child.castShadow = true
+      child.receiveShadow = true
+    }
+  })
+}
+
+// Window detection by color: dark panels on buildings are glass/windows
+function enableWindowGlow(obj: THREE.Object3D, glowColor = '#ffeeaa') {
+  obj.traverse((child) => {
+    const mesh = child as THREE.Mesh
+    if (!mesh.isMesh) return
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    mats.forEach((m) => {
+      const mat = m as THREE.MeshStandardMaterial
+      if (!mat.color) return
+      const { r, g, b } = mat.color
+      const brightness = (r + g + b) / 3
+      // Dark materials (0.03–0.32 brightness) are window/glass panels — make them glow
+      if (brightness > 0.03 && brightness < 0.32) {
+        mat.emissive = new THREE.Color(glowColor)
+        mat.emissiveIntensity = 1.8
+        mat.toneMapped = false
+      }
+    })
+  })
+}
 
 class ModelErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false }
@@ -47,6 +87,8 @@ const FILLER_SMALL = [
 function RoadGrid() {
   const { scene: cross }    = useGLTF('/models/roads/road-crossroad.glb')
   const { scene: straight } = useGLTF('/models/roads/road-straight.glb')
+
+  useEffect(() => { enableShadows(cross); enableShadows(straight) }, [cross, straight])
 
   const tiles = useMemo(() => {
     const out: { pos: [number, number, number]; rot: number; obj: 'cross' | 'straight' }[] = []
@@ -91,6 +133,10 @@ function FillerBuildings() {
   const skyscrapers = FILLER_SKYSCRAPERS.map(u => useGLTF(u).scene)
   const smalls = FILLER_SMALL.map(u => useGLTF(u).scene)
 
+  useEffect(() => {
+    ;[...skyscrapers, ...smalls].forEach((s) => { enableShadows(s); enableWindowGlow(s, '#ffeeaa') })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const placements = useMemo(() => {
     const out: { pos: [number, number, number]; scene: THREE.Group; rot: number }[] = []
     let idx = 0
@@ -117,6 +163,39 @@ function FillerBuildings() {
   )
 }
 
+// Spotlight that points straight down — needs a scene target object
+function LampSpot({ px, pz }: { px: number; pz: number }) {
+  const spotRef = useRef<THREE.SpotLight>(null)
+  const targetRef = useRef<THREE.Group>(null)
+  useEffect(() => {
+    if (spotRef.current && targetRef.current) {
+      spotRef.current.target = targetRef.current
+      targetRef.current.updateMatrixWorld()
+    }
+  }, [])
+  // Head is at the end of the curved arm — slightly offset from the pole
+  const hx = px + 0.5
+  const hz = pz + 0.5
+  const hy = 3.6
+  return (
+    <>
+      {/* Target directly below lamp head on the ground */}
+      <group ref={targetRef} position={[hx, 0, hz]} />
+      <spotLight
+        ref={spotRef}
+        position={[hx, hy, hz]}
+        angle={Math.PI / 1.9}
+        penumbra={0.55}
+        intensity={22}
+        distance={14}
+        decay={1.6}
+        color="#ffdd88"
+        castShadow={false}
+      />
+    </>
+  )
+}
+
 // ─── Street lamps ───────────────────────────────────────────────────────────
 function GLBLamps() {
   const { scene: lamp } = useGLTF('/models/roads/streetlamp.glb')
@@ -129,10 +208,15 @@ function GLBLamps() {
     return out
   }, [])
 
+  useEffect(() => { enableShadows(lamp) }, [lamp])
+
   return (
     <group>
       {positions.map((pos, i) => (
-        <Clone key={i} object={lamp} position={pos} scale={W} />
+        <group key={i}>
+          <Clone object={lamp} position={pos} scale={W} />
+          <LampSpot px={pos[0]} pz={pos[2]} />
+        </group>
       ))}
     </group>
   )
@@ -143,6 +227,9 @@ function ParkedCars() {
   const { scene: police } = useGLTF('/models/cars/police.glb')
   const { scene: sedan }  = useGLTF('/models/cars/sedan-sports.glb')
   const { scene: taxi }   = useGLTF('/models/cars/taxi.glb')
+
+  useEffect(() => { enableShadows(police); enableShadows(sedan); enableShadows(taxi) }, [police, sedan, taxi])
+
   return (
     <group>
       <Clone object={sedan}  position={[-2, 0, 7]}  scale={W * 0.5} />
@@ -243,8 +330,10 @@ export default function CityScene() {
     <div style={{ width: '100vw', height: '100vh', background: '#0a0a1a', position: 'relative' }}>
       <Canvas
         camera={{ position: [15, 15, 15], fov: 40, near: 0.1, far: 300 }}
-        gl={{ antialias: false, powerPreference: 'high-performance' }}
+        gl={{ antialias: true, powerPreference: 'high-performance' }}
         dpr={[1, 1.5]}
+        shadows="soft"
+        onCreated={(state) => { state.gl.toneMappingExposure = 0.85 }}
       >
         <OrbitControls
           ref={controlsRef}
@@ -263,14 +352,41 @@ export default function CityScene() {
         <ProximityChecker buildings={buildings} playerPos={playerPos} onNearbyChange={handleNearbyChange} />
 
         {/* Lighting */}
-        <ambientLight intensity={2} />
-        <directionalLight position={[15, 20, 15]} intensity={1.5} />
-        <hemisphereLight args={['#aaccff', '#224422', 0.6]} />
+        <ambientLight intensity={0.4} color="#0a0a2a" />
+        <directionalLight
+          position={[-20, 30, 10]}
+          intensity={1.6}
+          color="#b0c8ff"
+          castShadow
+          shadow-mapSize={[1024, 1024]}
+          shadow-camera-near={0.5}
+          shadow-camera-far={120}
+          shadow-camera-left={-45}
+          shadow-camera-right={45}
+          shadow-camera-top={45}
+          shadow-camera-bottom={-45}
+          shadow-bias={-0.0005}
+        />
+        <directionalLight position={[20, 8, -15]} intensity={0.4} color="#ff6622" />
+        <hemisphereLight args={['#111133', '#1a0f00', 0.4]} />
+
+        {/* Sky & atmosphere */}
+        <Sky
+          distance={450000}
+          sunPosition={[0, -0.5, -1]}
+          inclination={0.52}
+          azimuth={0.25}
+          rayleigh={0.05}
+          turbidity={20}
+          mieCoefficient={0.003}
+          mieDirectionalG={0.9}
+        />
+        <fogExp2 attach="fog" args={['#070510', 0.018]} />
 
         {/* Ground */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
           <planeGeometry args={[80, 80]} />
-          <meshLambertMaterial color="#1a2e1a" />
+          <meshStandardMaterial color="#0d1a0f" roughness={0.95} metalness={0.02} />
         </mesh>
 
         <ModelErrorBoundary>
@@ -309,6 +425,13 @@ export default function CityScene() {
             ))}
           </Suspense>
         </ModelErrorBoundary>
+
+        <Effects disableGamma>
+          {/* @ts-ignore */}
+          <unrealBloomPass args={[new THREE.Vector2(256, 256), 0.8, 0.5, 0.75]} />
+          {/* @ts-ignore */}
+          <filmPass args={[0.12, 0.0, 0, false]} />
+        </Effects>
       </Canvas>
 
       {/* HUD */}
