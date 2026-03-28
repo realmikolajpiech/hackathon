@@ -72,11 +72,22 @@ export async function generateWorld(): Promise<WorldData> {
       throw new Error(`API error ${response.status}: ${body}`)
     }
     const data = await response.json()
-    const raw: string = data.candidates[0].content.parts[0].text
+    const candidate = data.candidates?.[0]
+    if (!candidate?.content?.parts?.[0]?.text) {
+      const reason = candidate?.finishReason ?? 'unknown'
+      throw new Error(`Gemini returned no text (finishReason: ${reason}). Full response: ${JSON.stringify(data).slice(0, 500)}`)
+    }
+    const raw: string = candidate.content.parts[0].text
     const start = raw.indexOf('{')
     const end = raw.lastIndexOf('}')
     if (start === -1 || end === -1) throw new Error('No JSON object found in response')
-    return JSON.parse(raw.slice(start, end + 1)) as WorldData
+    const jsonStr = raw.slice(start, end + 1)
+    try {
+      return JSON.parse(jsonStr) as WorldData
+    } catch (parseErr) {
+      console.error('Failed to parse world JSON:', jsonStr.slice(0, 500))
+      throw new Error(`JSON parse error in generateWorld: ${parseErr instanceof Error ? parseErr.message : parseErr}`)
+    }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error('World generation timed out — check your network connection')

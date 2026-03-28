@@ -57,5 +57,10 @@ export async function sendNPCMessage(
   if (!response.ok) throw new Error(`API error: ${response.status}`)
 
   const data = await response.json()
-  return data.candidates[0].content.parts[0].text
+  const candidate = data.candidates?.[0]
+  if (!candidate?.content?.parts?.[0]?.text) {
+    const reason = candidate?.finishReason ?? 'unknown'
+    throw new Error(`Gemini NPC response empty (finishReason: ${reason})`)
+  }
+  return candidate.content.parts[0].text
 }
