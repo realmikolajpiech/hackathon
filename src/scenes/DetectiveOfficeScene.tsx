@@ -245,11 +245,13 @@ const BOARD_POS  = new THREE.Vector3(-1.5, 0, -3.8)
 const DESK_POS   = new THREE.Vector3(3.0,  0, -1.5)
 const DOOR_POS   = new THREE.Vector3(0,    0,  3.8)
 
-function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
+function ProximityHints({ playerPos, onBoard, onDesk, onDoor, boardOpen, computerOpen }: {
   playerPos: React.MutableRefObject<THREE.Vector3>
   onBoard: () => void
   onDesk: () => void
   onDoor: () => void
+  boardOpen: boolean
+  computerOpen: boolean
 }) {
   const hasCase = !!useGameStore((s) => s.currentCase)
   const [nearBoard, setNearBoard] = useState(false)
@@ -279,7 +281,7 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
 
   return (
     <>
-      {nearBoard && (
+      {nearBoard && !boardOpen && (
         <Html position={[-1.5, 2.2, -3.8]} center distanceFactor={12}>
           <div style={{
             color: '#d4b483', fontSize: 13, letterSpacing: 2,
@@ -291,7 +293,7 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
           </div>
         </Html>
       )}
-      {nearDesk && (
+      {nearDesk && !computerOpen && (
         <Html position={[3.0, 2.2, -2.0]} center distanceFactor={12}>
           <div style={{
             color: '#88cc88', fontSize: 13, letterSpacing: 2,
@@ -1027,6 +1029,8 @@ export default function DetectiveOfficeScene() {
           onBoard={() => setShowBoard(true)}
           onDesk={() => setShowComputer(true)}
           onDoor={() => setPhase('city')}
+          boardOpen={showBoard}
+          computerOpen={showComputer}
         />
         <Suspense fallback={null}>
           <Player

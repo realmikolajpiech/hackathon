@@ -21,8 +21,10 @@ export class GeminiLiveSession {
   }
 
   connect() {
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${proto}//${window.location.host}/api/live`
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const url = isLocal
+      ? 'ws://localhost:3001/api/live'
+      : `wss://${window.location.host}/api/live`
     this.config.onStatusChange('connecting')
     this.ws = new WebSocket(url)
 

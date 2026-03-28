@@ -516,6 +516,9 @@ export default function CityScene() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      const el = document.activeElement
+      const isTyping = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)
+      if (isTyping) return
       if (e.key.toLowerCase() === 'e' && nearbyBuildingRef.current) {
         handleBuildingInteract(nearbyBuildingRef.current.npc_id, nearbyBuildingRef.current.type)
       }

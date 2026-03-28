@@ -119,13 +119,29 @@ export default function Player({
         case 'shift':                input.current.sprint   = pressed; break
       }
     }
-    const onDown = (e: KeyboardEvent) => apply(e.key.toLowerCase(), true)
-    const onUp   = (e: KeyboardEvent) => apply(e.key.toLowerCase(), false)
+    const isTyping = () => {
+      const el = document.activeElement
+      if (!el) return false
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement).isContentEditable
+    }
+    const clearAll = () => {
+      input.current.forward = input.current.backward =
+      input.current.left = input.current.right = input.current.sprint = false
+    }
+    const onDown = (e: KeyboardEvent) => { if (!isTyping()) apply(e.key.toLowerCase(), true) }
+    const onUp   = (e: KeyboardEvent) => { if (!isTyping()) apply(e.key.toLowerCase(), false) }
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target as HTMLElement
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) clearAll()
+    }
     window.addEventListener('keydown', onDown)
     window.addEventListener('keyup', onUp)
+    window.addEventListener('focusin', onFocusIn)
     return () => {
       window.removeEventListener('keydown', onDown)
       window.removeEventListener('keyup', onUp)
+      window.removeEventListener('focusin', onFocusIn)
     }
   }, [])
 
