@@ -1,11 +1,12 @@
 import { useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import { useFrame } from '@react-three/fiber'
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import * as THREE from 'three'
 
 interface FollowCameraProps {
   target: THREE.Vector3
   controlsRef?: React.RefObject<OrbitControlsImpl | null>
+  offset?: [number, number, number]
 }
 
 export default function FollowCamera({
