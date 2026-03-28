@@ -2,7 +2,8 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { useGameStore, EvidenceItem } from '../store/gameStore'
+import { useGameStore } from '../store/gameStore'
+import type { EvidenceItem } from '../store/gameStore'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
