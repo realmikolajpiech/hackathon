@@ -15,7 +15,8 @@ export default function OfficeScene() {
       setWorld(world)
       setPhase('case_selection')
     } catch (e) {
-      setError('Failed to connect. Check your Gemini API key in .env')
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
       console.error(e)
     }
     setIsGenerating(false)

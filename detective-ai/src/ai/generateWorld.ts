@@ -59,10 +59,20 @@ export async function generateWorld(): Promise<WorldData> {
       body: {
         contents: [{ parts: [{ text: PROMPT }] }],
         generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
+<<<<<<< HEAD
       },
     }),
   })
   if (!response.ok) throw new Error(`API error: ${response.status}`)
+=======
+      }),
+    }
+  )
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Gemini API ${response.status}: ${body}`)
+  }
+>>>>>>> 1f40483 (update)
   const data = await response.json()
   const raw: string = data.candidates[0].content.parts[0].text
   const start = raw.indexOf('{')

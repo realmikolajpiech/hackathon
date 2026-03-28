@@ -38,7 +38,8 @@ export default function CaseSelectionScene() {
       setCurrentCase(fullCase)
       setPhase('city')
     } catch (e) {
-      setError('Failed to load case. Try again.')
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
       console.error(e)
     }
     setLoadingId(null)
