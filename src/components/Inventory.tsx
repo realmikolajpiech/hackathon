@@ -205,10 +205,10 @@ function Item3DViewer({ item }: { item: EvidenceItem }) {
       camera={{ position: [0, 0.6, 2.2], fov: 42 }}
       gl={{ alpha: true, antialias: true }}
     >
-      <ambientLight intensity={0.3} color="#1a1a4a" />
-      <pointLight position={[2.5, 3, 2]} intensity={2.2} color="#ff0055" />
-      <pointLight position={[-2, 1, 2]} intensity={1.4} color="#4040ff" />
-      <pointLight position={[0, -1, 1]} intensity={0.8} color="#d4b483" />
+      <ambientLight intensity={1.8} />
+      <pointLight position={[2, 3, 3]} intensity={4} color="#fff8ee" />
+      <pointLight position={[-2, 1, 2]} intensity={2} color="#d4b483" />
+      <pointLight position={[0, -1, 1]} intensity={1} color="#ffffff" />
       {/* subtle floor plane for shadow feel */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.7, 0]}>
         <planeGeometry args={[4, 4]} />

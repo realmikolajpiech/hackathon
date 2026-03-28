@@ -552,6 +552,7 @@ export default function InteriorScene3D() {
     text: string
     evidenceName?: string
   } | null>(null)
+  const popupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showNotebook, setShowNotebook] = useState(false)
   const [nearbyObj, setNearbyObj] = useState<{ obj: InteriorObject; index: number } | null>(null)
   const nearbyObjRef = useRef<{ obj: InteriorObject; index: number } | null>(null)
@@ -643,6 +644,8 @@ export default function InteriorScene3D() {
       }
     }
     setExaminePopup({ text: obj.examine_text, evidenceName })
+    if (popupTimer.current) clearTimeout(popupTimer.current)
+    popupTimer.current = setTimeout(() => setExaminePopup(null), 5000)
   }
 
   return (
