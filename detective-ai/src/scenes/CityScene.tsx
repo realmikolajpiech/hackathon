@@ -1,6 +1,6 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { useGLTF, Clone, Html } from '@react-three/drei'
-import { Suspense, useState, useRef, useMemo, Component, type ReactNode } from 'react'
+import { Suspense, useState, useRef, useMemo, useEffect, Component, type ReactNode } from 'react'
 import * as THREE from 'three'
 import Building, { NEON_COLORS } from '../components/Building'
 import Player from '../components/Player'
@@ -208,6 +208,40 @@ const TREE_POS: [number, number, number][] = [
   [S + 0.4, 0, S * 2 + 0.4], [-(S + 0.4), 0, -(S * 2 + 0.4)],
 ]
 
+// ─── Proximity checker (runs inside Canvas) ──────────────────────────────────
+type BuildingEntry = { type: string; position: [number, number, number]; npc_id: string | null }
+
+function ProximityChecker({
+  buildings,
+  playerPos,
+  onNearbyChange,
+}: {
+  buildings: BuildingEntry[]
+  playerPos: React.MutableRefObject<THREE.Vector3>
+  onNearbyChange: (b: BuildingEntry | null) => void
+}) {
+  const lastNearest = useRef<BuildingEntry | null>(null)
+  useFrame(() => {
+    const pos = playerPos.current
+    let nearest: BuildingEntry | null = null
+    let nearestDist = Infinity
+    for (const b of buildings) {
+      const dx = pos.x - b.position[0]
+      const dz = pos.z - b.position[2]
+      const dist = Math.sqrt(dx * dx + dz * dz)
+      if (dist < 3 && dist < nearestDist) {
+        nearest = b
+        nearestDist = dist
+      }
+    }
+    if (nearest !== lastNearest.current) {
+      lastNearest.current = nearest
+      onNearbyChange(nearest)
+    }
+  })
+  return null
+}
+
 // ─── Main scene ─────────────────────────────────────────────────────────────
 export default function CityScene() {
   const {
@@ -219,11 +253,18 @@ export default function CityScene() {
   } = useGameStore()
   const [showNotebook, setShowNotebook] = useState(false)
   const playerPos = useRef(new THREE.Vector3(0, 0, 0))
+  const [nearbyBuilding, setNearbyBuilding] = useState<BuildingEntry | null>(null)
+  const nearbyBuildingRef = useRef<BuildingEntry | null>(null)
+
+  function handleNearbyChange(b: BuildingEntry | null) {
+    nearbyBuildingRef.current = b
+    setNearbyBuilding(b)
+  }
 
   if (!currentCase) return null
   const buildings = currentCase.map_layout.buildings
 
-  function handleBuildingClick(npcId: string | null, buildingType: string) {
+  function handleBuildingInteract(npcId: string | null, buildingType: string) {
     const interior = currentCase!.interiors?.find((i) => i.building_type === buildingType)
     if (interior) { setCurrentInterior(interior); setPhase('interior'); return }
     if (npcId) {
@@ -231,6 +272,17 @@ export default function CityScene() {
       if (npc) setActiveNPC(npc)
     }
   }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key.toLowerCase() === 'e' && nearbyBuildingRef.current) {
+        handleBuildingInteract(nearbyBuildingRef.current.npc_id, nearbyBuildingRef.current.type)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   function handleCloseDialog() { setActiveNPC(null) }
 
@@ -250,6 +302,7 @@ export default function CityScene() {
           <Player onPositionChange={(pos) => playerPos.current.copy(pos)} />
         </Suspense>
         <FollowCamera target={playerPos.current} />
+        <ProximityChecker buildings={buildings} playerPos={playerPos} onNearbyChange={handleNearbyChange} />
 
         {/* Lighting */}
         <ambientLight intensity={1.5} />
@@ -305,7 +358,6 @@ export default function CityScene() {
                     type={b.type}
                     position={b.position}
                     npcId={b.npc_id}
-                    onClick={() => handleBuildingClick(b.npc_id, b.type)}
                   />
                   <group position={[b.position[0], 6, b.position[2]]}>
                     <Html center style={{ pointerEvents: 'none' }}>
@@ -347,7 +399,7 @@ export default function CityScene() {
           Victim: <span style={{ color: '#d4b483' }}>{currentCase.case.victim.name}</span>
         </div>
         <div style={{ marginTop: 6, color: '#444', fontSize: 11 }}>
-          WASD to move · Click a building to enter
+          WASD to move · Press E to interact
         </div>
       </div>
 
@@ -413,6 +465,20 @@ export default function CityScene() {
           )
         })}
       </div>
+
+      {nearbyBuilding && !activeNPC && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,0,0,0.85)', border: '1px solid #ff0055',
+          color: '#fff', padding: '8px 20px',
+          fontFamily: '"Courier New", monospace', fontSize: 13, letterSpacing: 2,
+          pointerEvents: 'none',
+          textShadow: '0 0 8px #ff0055',
+        }}>
+          <span style={{ color: '#ff0055', fontWeight: 'bold' }}>E</span>
+          {' '}— {nearbyBuilding.type.toUpperCase()}
+        </div>
+      )}
 
       {activeNPC && (
         <>
