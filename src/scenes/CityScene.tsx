@@ -403,8 +403,7 @@ export default function CityScene() {
     setNearbyBuilding(b)
   }
 
-  if (!currentCase) return null
-  const rawBuildings = currentCase.map_layout.buildings
+  const rawBuildings = currentCase?.map_layout.buildings ?? []
 
   // Snap ALL story buildings to valid block centers (never on roads).
   // Each building gets the nearest free block center to avoid overlaps.
@@ -629,12 +628,21 @@ export default function CityScene() {
             {world.city.name.toUpperCase()}
           </div>
         )}
-        <div style={{ color: '#ff0055', fontSize: 15, fontWeight: 'bold', marginBottom: 4 }}>
-          {currentCase.case.title}
-        </div>
-        <div style={{ fontSize: 11 }}>
-          Victim: <span style={{ color: '#d4b483' }}>{currentCase.case.victim.name}</span>
-        </div>
+        {currentCase && (
+          <>
+            <div style={{ color: '#ff0055', fontSize: 15, fontWeight: 'bold', marginBottom: 4 }}>
+              {currentCase.case.title}
+            </div>
+            <div style={{ fontSize: 11 }}>
+              Victim: <span style={{ color: '#d4b483' }}>{currentCase.case.victim.name}</span>
+            </div>
+          </>
+        )}
+        {!currentCase && (
+          <div style={{ color: '#3a2a10', fontSize: 11, letterSpacing: 1 }}>
+            NO ACTIVE CASE
+          </div>
+        )}
         <div style={{ marginTop: 6, color: '#444', fontSize: 11 }}>
           WASD move · E interact · Scroll zoom · Drag rotate
         </div>
@@ -681,7 +689,7 @@ export default function CityScene() {
         fontFamily: '"Courier New", monospace', fontSize: 11,
         color: '#444', pointerEvents: 'none',
       }}>
-        {currentCase.npcs.map((npc) => {
+        {currentCase?.npcs.map((npc) => {
           const building = buildings.find((b) => b.npc_id === npc.id)
           return (
             <div key={npc.id} style={{ marginBottom: 3 }}>

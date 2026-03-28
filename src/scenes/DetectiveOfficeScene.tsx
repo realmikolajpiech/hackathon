@@ -322,37 +322,41 @@ function OfficePlayer({ onPositionChange }: { onPositionChange: (pos: THREE.Vect
 
 const BOARD_POS  = new THREE.Vector3(-1.5, 0, -3.8)
 const DESK_POS   = new THREE.Vector3(3.0,  0, -1.5)
+const DOOR_POS   = new THREE.Vector3(0,    0,  3.8)
 
-function ProximityHints({ playerPos, onBoard, onDesk, boardOpen, deskOpen }: {
+function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
   playerPos: React.MutableRefObject<THREE.Vector3>
   onBoard: () => void
   onDesk: () => void
-  boardOpen?: boolean
-  deskOpen?: boolean
+  onDoor: () => void
 }) {
   const [nearBoard, setNearBoard] = useState(false)
   const [nearDesk, setNearDesk]   = useState(false)
+  const [nearDoor, setNearDoor]   = useState(false)
 
   useFrame(() => {
     const nb = playerPos.current.distanceTo(BOARD_POS) < 2.5
     const nd = playerPos.current.distanceTo(DESK_POS)  < 2.5
+    const ng = playerPos.current.distanceTo(DOOR_POS)  < 2.0
     setNearBoard(nb)
     setNearDesk(nd)
+    setNearDoor(ng)
   })
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key.toLowerCase() !== 'e') return
-      if (nearBoard) onBoard()
+      if (nearDoor) onDoor()
+      else if (nearBoard) onBoard()
       else if (nearDesk) onDesk()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [nearBoard, nearDesk, onBoard, onDesk])
+  }, [nearBoard, nearDesk, nearDoor, onBoard, onDesk, onDoor])
 
   return (
     <>
-      {nearBoard && !boardOpen && (
+      {nearBoard && (
         <Html position={[-1.5, 2.2, -3.8]} center distanceFactor={12}>
           <div style={{
             color: '#d4b483', fontSize: 11, letterSpacing: 2,
@@ -364,7 +368,7 @@ function ProximityHints({ playerPos, onBoard, onDesk, boardOpen, deskOpen }: {
           </div>
         </Html>
       )}
-      {nearDesk && !deskOpen && (
+      {nearDesk && (
         <Html position={[3.0, 2.2, -2.0]} center distanceFactor={12}>
           <div style={{
             color: '#88cc88', fontSize: 11, letterSpacing: 2,
@@ -373,6 +377,18 @@ function ProximityHints({ playerPos, onBoard, onDesk, boardOpen, deskOpen }: {
             border: '1px solid #88cc8844', whiteSpace: 'nowrap',
           }}>
             E — EVIDENCE COMPUTER
+          </div>
+        </Html>
+      )}
+      {nearDoor && (
+        <Html position={[0, 2.2, 3.8]} center distanceFactor={12}>
+          <div style={{
+            color: '#aaddff', fontSize: 11, letterSpacing: 2,
+            background: 'rgba(0,0,0,0.85)', padding: '4px 12px',
+            fontFamily: '"Courier New", monospace',
+            border: '1px solid #aaddff44', whiteSpace: 'nowrap',
+          }}>
+            E — EXIT TO CITY
           </div>
         </Html>
       )}
@@ -682,12 +698,6 @@ function ComputerOverlay({ onClose, onSendToLaw }: {
   } = useGameStore()
 
   const [selectedSuspect, setSelectedSuspect] = useState<string | null>(null)
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   if (!currentCase) {
     return (
@@ -1066,8 +1076,7 @@ export default function DetectiveOfficeScene() {
           playerPos={playerPos}
           onBoard={() => setShowBoard(true)}
           onDesk={() => setShowComputer(true)}
-          boardOpen={showBoard}
-          deskOpen={showComputer}
+          onDoor={() => setPhase('city')}
         />
         <Suspense fallback={
           <group position={[0, 0, 2.5]}>
@@ -1100,19 +1109,6 @@ export default function DetectiveOfficeScene() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {currentCase && (
-            <button
-              onClick={() => setPhase('city')}
-              style={{
-                background: '#3a0a00', border: '1px solid #d4b483',
-                color: '#d4b483', padding: '5px 16px', cursor: 'pointer',
-                fontFamily: 'inherit', fontSize: 10, letterSpacing: 2,
-                boxShadow: '0 0 10px rgba(212,180,131,0.15)',
-              }}
-            >
-              GO INVESTIGATE →
-            </button>
-          )}
           {!currentCase && (
             <span style={{ fontSize: 9, color: '#3a2a10', letterSpacing: 2 }}>
               APPROACH THE BOARD TO SELECT A CASE

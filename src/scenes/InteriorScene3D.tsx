@@ -479,6 +479,52 @@ function NPCCharacter({ npcId, npcName, neonColor }: { npcId: string; npcName: s
   )
 }
 
+// ─── Door proximity hint ──────────────────────────────────────────────────────
+
+const INTERIOR_DOOR_POS = new THREE.Vector3(0, 0, 2.8)
+
+function DoorProximityHint({
+  playerPos,
+  onExit,
+}: {
+  playerPos: React.MutableRefObject<THREE.Vector3>
+  onExit: () => void
+}) {
+  const [near, setNear] = useState(false)
+  const nearRef = useRef(false)
+
+  useFrame(() => {
+    const d = playerPos.current.distanceTo(INTERIOR_DOOR_POS)
+    const n = d < 2.0
+    if (n !== nearRef.current) {
+      nearRef.current = n
+      setNear(n)
+    }
+  })
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() === 'e' && nearRef.current) onExit()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onExit])
+
+  if (!near) return null
+  return (
+    <Html position={[0, 2.2, 2.8]} center distanceFactor={12}>
+      <div style={{
+        color: '#aaddff', fontSize: 11, letterSpacing: 2,
+        background: 'rgba(0,0,0,0.85)', padding: '4px 12px',
+        fontFamily: '"Courier New", monospace',
+        border: '1px solid #aaddff44', whiteSpace: 'nowrap',
+      }}>
+        E — EXIT TO CITY
+      </div>
+    </Html>
+  )
+}
+
 // ─── Object proximity checker ────────────────────────────────────────────────
 
 function ObjectProximityChecker({
@@ -670,6 +716,7 @@ export default function InteriorScene3D() {
       >
         <InteriorRoom buildingType={interior.building_type} />
         <FollowCamera target={playerPos.current} />
+        <DoorProximityHint playerPos={playerPos} onExit={handleExit} />
         <ObjectProximityChecker
           objects={interior.objects.slice(0, 6)}
           examinePositions={EXAMINE_POSITIONS}
