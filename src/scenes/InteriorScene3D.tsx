@@ -728,7 +728,7 @@ export default function InteriorScene3D() {
 
       {/* ── 3D Canvas ── */}
       <Canvas
-        camera={{ position: [6, 8, 6], fov: 45, near: 0.1, far: 200 }}
+        camera={{ position: [3, 5, 3], fov: 45, near: 0.1, far: 200 }}
         shadows
         style={{ position: 'absolute', inset: 0 }}
       >
@@ -737,13 +737,13 @@ export default function InteriorScene3D() {
           enablePan={false}
           enableDamping
           dampingFactor={0.1}
-          minDistance={5}
-          maxDistance={25}
+          minDistance={3}
+          maxDistance={15}
           maxPolarAngle={Math.PI / 1.8}
           minPolarAngle={Math.PI / 6}
         />
         <InteriorRoom buildingType={interior.building_type} />
-        <FollowCamera target={playerPos.current} />
+        <FollowCamera target={playerPos.current} controlsRef={controlsRef} wallBounds={{ minX: -3.4, maxX: 3.4, minZ: -3.4, maxZ: 3.4 }} />
         <DoorProximityHint playerPos={playerPos} onExit={handleExit} />
         <ObjectProximityChecker
           objects={interior.objects.slice(0, 6)}

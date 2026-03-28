@@ -537,7 +537,7 @@ export default function CityScene() {
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#0a0a1a', position: 'relative' }}>
       <Canvas
-        camera={{ position: [15, 15, 15], fov: 40, near: 0.1, far: 300 }}
+        camera={{ position: [8, 10, 8], fov: 40, near: 0.1, far: 300 }}
         gl={{ antialias: false, powerPreference: 'high-performance' }}
         dpr={[1, 1]}
         shadows
