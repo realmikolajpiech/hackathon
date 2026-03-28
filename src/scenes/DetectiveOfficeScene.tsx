@@ -346,7 +346,8 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key.toLowerCase() !== 'e') return
-      if (nearDoor) onDoor()
+      // Read store at press-time to avoid stale closure
+      if (nearDoor && !!useGameStore.getState().currentCase) onDoor()
       else if (nearBoard) onBoard()
       else if (nearDesk) onDesk()
     }

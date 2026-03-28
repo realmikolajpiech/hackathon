@@ -320,6 +320,22 @@ function InteriorRoom({ buildingType }: { buildingType: string }) {
         <meshStandardMaterial color={wallCol} roughness={0.9} />
       </mesh>
 
+      {/* Door panel (sits in front of wall interior face at z=3.40) */}
+      <mesh position={[0, 1.1, 3.36]} castShadow>
+        <boxGeometry args={[1.0, 2.2, 0.07]} />
+        <meshStandardMaterial color="#1a1208" roughness={0.7} />
+      </mesh>
+      {/* Door panel inset */}
+      <mesh position={[0, 1.2, 3.32]}>
+        <boxGeometry args={[0.82, 1.7, 0.02]} />
+        <meshStandardMaterial color="#130c05" roughness={0.9} />
+      </mesh>
+      {/* Door handle */}
+      <mesh position={[0.36, 1.1, 3.30]}>
+        <sphereGeometry args={[0.045, 8, 8]} />
+        <meshStandardMaterial color="#8B6914" roughness={0.3} metalness={0.7} />
+      </mesh>
+
       {/* Neon accent strip – north wall */}
       <mesh position={[0, 2.35, -3.38]}>
         <boxGeometry args={[6.5, 0.07, 0.04]} />
