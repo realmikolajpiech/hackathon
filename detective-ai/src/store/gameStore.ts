@@ -105,6 +105,8 @@ interface GameState {
   accusation: string | null
   isLoading: boolean
   voiceActive: boolean
+  inventoryOpen: boolean
+  selectedInventoryItem: EvidenceItem | null
 
   setPhase: (phase: GamePhase) => void
   setWorld: (world: WorldData) => void
@@ -119,6 +121,9 @@ interface GameState {
   accuse: (npcId: string) => void
   setLoading: (loading: boolean) => void
   setVoiceActive: (active: boolean) => void
+  openInventory: () => void
+  closeInventory: () => void
+  selectInventoryItem: (item: EvidenceItem | null) => void
   reset: () => void
 }
 
@@ -135,6 +140,8 @@ const initialState = {
   accusation: null,
   isLoading: false,
   voiceActive: false,
+  inventoryOpen: false,
+  selectedInventoryItem: null as EvidenceItem | null,
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -178,5 +185,8 @@ export const useGameStore = create<GameState>((set) => ({
   accuse: (npcId) => set({ accusation: npcId, phase: 'resolution' }),
   setLoading: (loading) => set({ isLoading: loading }),
   setVoiceActive: (active) => set({ voiceActive: active }),
+  openInventory: () => set({ inventoryOpen: true }),
+  closeInventory: () => set({ inventoryOpen: false }),
+  selectInventoryItem: (item) => set({ selectedInventoryItem: item }),
   reset: () => set({ ...initialState }),
 }))

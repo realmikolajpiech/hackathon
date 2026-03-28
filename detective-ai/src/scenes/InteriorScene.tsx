@@ -3,6 +3,7 @@ import { useGameStore } from '../store/gameStore'
 import DialogBox from '../components/DialogBox'
 import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
+import Inventory from '../components/Inventory'
 
 export default function InteriorScene() {
   const {
@@ -17,6 +18,10 @@ export default function InteriorScene() {
     collectEvidence,
     accuse,
     addNote,
+    collectedEvidence,
+    openInventory,
+    selectInventoryItem,
+    inventoryOpen,
   } = useGameStore()
   const [showNotebook, setShowNotebook] = useState(false)
 
@@ -59,7 +64,11 @@ export default function InteriorScene() {
     addNote(`[${interior.name}] ${examineText}`)
     if (evidenceId && currentCase) {
       const item = currentCase.evidence_items?.find((e) => e.id === evidenceId)
-      if (item) collectEvidence(item)
+      if (item) {
+        collectEvidence(item)
+        selectInventoryItem(item)
+        openInventory()
+      }
     }
   }
 
@@ -106,16 +115,42 @@ export default function InteriorScene() {
             </span>
           </div>
         </div>
-        <button
-          onClick={() => setShowNotebook(true)}
-          style={{
-            background: 'transparent', border: '1px solid #8B6914',
-            color: '#d4b483', padding: '4px 12px', cursor: 'pointer',
-            fontFamily: 'inherit', fontSize: 10, letterSpacing: 1,
-          }}
-        >
-          NOTEBOOK
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={openInventory}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${collectedEvidence.length > 0 ? '#d4b48366' : '#2a2a3a'}`,
+              color: collectedEvidence.length > 0 ? '#d4b483' : '#444',
+              padding: '4px 12px', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 10, letterSpacing: 1,
+              position: 'relative',
+            }}
+          >
+            ◆ EVIDENCE
+            {collectedEvidence.length > 0 && (
+              <span style={{
+                position: 'absolute', top: -5, right: -5,
+                background: '#d4b483', color: '#050510',
+                borderRadius: '50%', width: 14, height: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 8, fontWeight: 'bold',
+              }}>
+                {collectedEvidence.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowNotebook(true)}
+            style={{
+              background: 'transparent', border: '1px solid #8B6914',
+              color: '#d4b483', padding: '4px 12px', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 10, letterSpacing: 1,
+            }}
+          >
+            NOTEBOOK
+          </button>
+        </div>
       </div>
 
       {/* Scrollable content */}
@@ -305,6 +340,7 @@ export default function InteriorScene() {
       )}
 
       {showNotebook && <Notebook onClose={() => setShowNotebook(false)} />}
+      {inventoryOpen && <Inventory />}
     </div>
   )
 }
