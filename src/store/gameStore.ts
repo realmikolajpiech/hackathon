@@ -11,13 +11,6 @@ export interface NPC {
   alibi: string
 }
 
-export interface Clue {
-  id: string
-  location: string
-  description: string
-  found: boolean
-}
-
 export interface EvidenceItem {
   id: string
   name: string          // e.g. "Monogrammed handkerchief"
@@ -52,7 +45,6 @@ export interface CaseData {
     solution: { murderer_id: string; evidence: string[] }
   }
   npcs: NPC[]
-  clues: Clue[]
   evidence_items: EvidenceItem[]
   map_layout: {
     buildings: Array<{ type: string; position: [number, number, number]; npc_id: string | null }>

@@ -1,7 +1,7 @@
 import type { CaseData, CaseSummary } from '../store/gameStore'
 
 function buildPrompt(summary: CaseSummary, cityName: string): string {
-  return `Generate a full noir detective case.
+  return `You are a detective game designer. Generate a noir case that is LOGICALLY SOLVABLE through deduction.
 
 City: ${cityName}
 Case Title: "${summary.title}"
@@ -9,6 +9,13 @@ Case Type: ${summary.type}
 Hook: ${summary.hook}
 Victim: ${summary.victim_name}
 Location: ${summary.location}
+
+FIRST, plan the case internally before writing JSON:
+1. Decide WHO the killer is and their specific motive.
+2. Decide WHAT physical evidence the killer left behind and WHERE — each piece must have a clear reason it implicates the killer (e.g. their monogrammed lighter found at the scene, not the victim's own belongings).
+3. Decide WHY each innocent suspect looks guilty — give each one a secret that makes them suspicious but is ultimately unrelated to the murder.
+4. Map out the INVESTIGATION PATH: which location leads to which, so the player must visit at least 3-4 buildings following a logical trail of clues.
+5. Verify: can a player, starting from the crime scene, follow hints from objects and NPC dialogue to reach every location where solution evidence is hidden? If not, add a breadcrumb.
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -18,8 +25,8 @@ Return ONLY valid JSON with this exact structure:
     "location": "string",
     "time_of_death": "string — e.g. 2:15 AM",
     "murder_weapon": "string or null",
-    "motive": "string",
-    "solution": { "murderer_id": "npc_1", "evidence": ["ev_1", "ev_2"] }
+    "motive": "string — the killer's specific reason",
+    "solution": { "murderer_id": "npc_X", "evidence": ["ev_1", "ev_2", "ev_3"] }
   },
   "npcs": [
     {
@@ -27,56 +34,94 @@ Return ONLY valid JSON with this exact structure:
       "name": "string",
       "occupation": "string",
       "building": "bar",
-      "personality": "string — 3-4 adjectives and behavioral traits",
-      "knows": ["string — facts they will reveal through dialogue"],
-      "hides": ["string — secrets they will only reveal under pressure"],
-      "alibi": "string — their claim about whereabouts"
+      "personality": "string — 3-4 adjectives and behavioral traits that affect how they speak",
+      "knows": [
+        "string — a fact they reveal freely",
+        "string — a fact that NAMES another NPC or location the player should visit next",
+        "string — an observation about another suspect's behavior",
+        "string — (optional) another cross-reference"
+      ],
+      "hides": [
+        "string — a secret they only reveal under pressure",
+        "string — another hidden fact that explains their suspicious behavior"
+      ],
+      "alibi": "string — their specific, verifiable or falsifiable claim about whereabouts"
     }
-  ],
-  "clues": [
-    { "id": "clue_1", "location": "string", "description": "string", "found": false }
   ],
   "evidence_items": [
     {
       "id": "ev_1",
-      "name": "string — short evocative name e.g. 'Monogrammed handkerchief'",
-      "description": "string — 1-2 sentences of physical appearance, texture, markings",
-      "found_at": "string — name of the interior/location where it is hidden",
-      "links_to": "npc_id of the suspect this evidence implicates, or null"
+      "name": "string — short evocative name",
+      "description": "string — physical description that EXPLAINS why this implicates the linked suspect (e.g. 'A gold cufflink engraved with the initials R.M. — matching those of suspect Raymond Marsh')",
+      "found_at": "string — MUST exactly match the 'name' field of one of the interiors",
+      "links_to": "npc_id or null"
     }
   ],
   "map_layout": {
     "buildings": [
-      { "type": "string", "position": [0, 0, 0], "npc_id": "npc_1 or null" }
+      { "type": "string", "position": [x, 0, z], "npc_id": "npc_1 or null" }
     ]
   },
   "interiors": [
     {
       "building_type": "bar",
       "name": "string — proper name of this location",
-      "atmosphere": "string — one evocative phrase e.g. 'smoke-stained, dimly lit'",
+      "atmosphere": "string — one evocative phrase",
       "description": "string — 2-3 sentences in second person starting with 'You enter...'",
       "objects": [
         {
           "id": "obj_1",
-          "name": "string — short object name e.g. 'Cracked mirror'",
-          "examine_text": "string — 1-2 sentences of what the detective observes on close inspection. May hint at evidence.",
-          "evidence_id": "ev_1 if examining this object yields an evidence item, otherwise omit this field"
+          "name": "string — short object name",
+          "examine_text": "string — what the detective observes. Non-evidence objects MUST hint at another location, suspect, or contradiction to investigate.",
+          "evidence_id": "ev_1 — only if this object yields evidence, otherwise OMIT this field entirely"
         }
       ]
     }
   ]
 }
 
-Rules:
-- NPCs: let the case dictate how many suspects are needed (typically 2-5). Assign ids npc_1, npc_2, etc. Exactly one is the culprit. The rest have partial knowledge, alibis, or motives that make them credible red herrings.
-- Clues: as many as the case warrants — enough to give the player meaningful leads without hand-holding. Typically 3-6.
-- Evidence items: enough to build a coherent case. Some should implicate the culprit, at least one should be a red herring pointing elsewhere, one or two may be atmospheric. solution.evidence must reference 2-3 culprit-linked evidence ids.
-- Buildings: one per NPC plus one police station (npc_id: null). Building types MUST be exactly one of: bar, apartments, warehouse, office, police. One interior per building. Each interior's building_type MUST exactly match its corresponding building's type field (same string, same spelling).
-- Distribute evidence across interiors naturally — where it would realistically be found.
-- 3-7 objects per interior.
-- Building positions: spread out across the map, e.g. [0,0,0], [5,0,-3], [-4,0,2], [1,0,5], [−2,0,−5].
-- Tone: dark, moody, 1950s noir. Clipped prose. Rain. Cigarette smoke.
+=== LOGICAL CONSISTENCY RULES ===
+
+EVIDENCE MUST MAKE SENSE:
+- Every evidence item with links_to MUST have a description that clearly explains WHY it implicates that specific person. "A matchbook from Sal's club" found at Sal's own club is NOT evidence — it's expected. Evidence must be something personal to the suspect found WHERE IT SHOULDN'T BE, or a document/record that ties them to the crime.
+- The murder weapon or a forensic trace of it (blood type match, a fragment, tool marks) MUST be one of the evidence items. It must link to the killer.
+- Red herring evidence must be genuinely misleading: an innocent suspect's personal item found near the crime scene, or a financial record suggesting motive. But it must have an innocent explanation discoverable through dialogue.
+
+EVERY LOCATION MUST BE REACHABLE THROUGH HINTS:
+- The crime scene (first building the player visits) must contain at least one object examine_text or NPC dialogue that names or hints at a second location.
+- Each subsequent location must be hinted at by a previous one — through NPC "knows" facts, object examine_texts, or evidence descriptions.
+- NO island locations: every building must be reachable by following the trail from the crime scene. Trace it yourself: crime scene → hint → location B → hint → location C, etc.
+- At least one NPC's "knows" must explicitly mention the name of the NPC or location where the next critical evidence is found.
+
+NPC KNOWLEDGE MUST CREATE CONTRADICTIONS:
+- Each NPC must have 3-4 "knows" and 2-3 "hides".
+- At least one "knows" per NPC must NAME a different NPC or their building/location.
+- NPC alibis should be partially verifiable — another NPC can confirm or contradict them.
+- The killer's alibi must be falsifiable through evidence or another NPC's testimony.
+- Innocent NPCs' "hides" should explain their suspicious behavior without connecting to the murder (e.g. hiding an affair, a debt, illegal side business).
+
+SUSPECTS:
+- Exactly 4 NPCs (npc_1 through npc_4). Exactly one is the killer.
+- Every innocent suspect must have BOTH a plausible motive AND suspicious behavior — but their "hides" must reveal an innocent explanation.
+- The killer's "hides" must contain the actual incriminating secret that connects to the evidence.
+
+EVIDENCE DISTRIBUTION:
+- 6-7 evidence items total.
+- Exactly 3 items link to the killer (these go in solution.evidence).
+- Exactly 2 items link to innocent NPCs as red herrings.
+- 1-2 items have links_to: null for atmosphere.
+- Solution evidence MUST come from at least 3 different interiors — the player cannot solve the case from fewer than 3 buildings.
+- No single interior may contain more than 2 evidence items.
+- At least 1 evidence item must be found at the killer's own building (something they failed to hide).
+
+BUILDINGS & INTERIORS:
+- Exactly 5 buildings: one per NPC + one with npc_id null.
+- Building types MUST be exactly one of: bar, apartments, warehouse, office, police.
+- Exactly 5 interiors — one per building. Each interior's building_type MUST match its building's type.
+- 5-7 objects per interior. Non-evidence objects must have examine_text that provides a hint, names another suspect, or reveals a contradiction.
+- Building positions: integer coordinates, spread at least 4 units apart, X and Z between -6 and 6, Y always 0.
+
+TONE: dark, moody, 1950s noir. Clipped prose. Moral ambiguity.
 - NO markdown, NO explanation, ONLY the JSON object`
 }
 
@@ -96,7 +141,7 @@ export async function generateCase(
         model: 'models/gemini-3.1-flash-lite-preview',
         body: {
           contents: [{ parts: [{ text: buildPrompt(summary, cityName) }] }],
-          generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
+          generationConfig: { temperature: 0.6, responseMimeType: 'application/json' },
         },
       }),
     })

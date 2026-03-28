@@ -124,7 +124,30 @@ function RoadGrid() {
   const { scene: cross }    = useGLTF('/models/roads/road-crossroad.glb')
   const { scene: straight } = useGLTF('/models/roads/road-straight.glb')
 
-  useEffect(() => { enableShadows(cross); enableShadows(straight) }, [cross, straight])
+  useEffect(() => {
+    enableShadows(cross)
+    enableShadows(straight)
+    // Darken bright sidewalk/curb materials so they don't bloom under lamp lights
+    ;[cross, straight].forEach((obj) => {
+      obj.traverse((child) => {
+        const mesh = child as THREE.Mesh
+        if (!mesh.isMesh) return
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        mats.forEach((m) => {
+          const mat = m as THREE.MeshStandardMaterial
+          if (!mat.color) return
+          const { r, g, b } = mat.color
+          const brightness = (r + g + b) / 3
+          if (brightness > 0.5) {
+            mat.color.multiplyScalar(0.25)
+            mat.roughness = 1
+            mat.metalness = 0
+            mat.needsUpdate = true
+          }
+        })
+      })
+    })
+  }, [cross, straight])
 
   const tiles = useMemo(() => {
     const out: { pos: [number, number, number]; rot: number; obj: 'cross' | 'straight' }[] = []
@@ -216,10 +239,10 @@ function LampSpot({ px, pz }: { px: number; pz: number }) {
       targetRef.current.updateMatrixWorld()
     }
   }, [])
-  // Head is at the end of the curved arm — slightly offset from the pole
-  const hx = px + 0.5
-  const hz = pz + 0.5
-  const hy = 3.6
+  // Arm extends in -Z direction; head is at Z offset -1.275 (model bbox * scale 6)
+  const hx = px
+  const hz = pz - 1.3
+  const hy = 3.4
   return (
     <>
       {/* Target directly below lamp head on the ground */}
@@ -227,34 +250,70 @@ function LampSpot({ px, pz }: { px: number; pz: number }) {
       <spotLight
         ref={spotRef}
         position={[hx, hy, hz]}
-        angle={Math.PI / 1.9}
-        penumbra={0.55}
-        intensity={22}
+        angle={Math.PI / 2.2}
+        penumbra={0.7}
+        intensity={60}
         distance={14}
-        decay={1.6}
+        decay={1.5}
         color="#ffdd88"
         castShadow={false}
       />
+      {/* Point light to illuminate the pole from close range */}
+      <pointLight position={[hx, hy, hz]} intensity={8} distance={5} decay={2} color="#ffdd88" />
     </>
   )
+}
+
+function mattifyLamp(root: THREE.Object3D) {
+  root.traverse((obj: any) => {
+    if (obj.isMesh && obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+      mats.forEach((m: any) => {
+        const { r, g, b } = m.color ?? { r: 0.5, g: 0.5, b: 0.5 }
+        const brightness = (r + g + b) / 3
+        if (brightness > 0.4) {
+          // Lamp head / lens — make it glow warm yellow
+          m.color = new THREE.Color('#ffdd88')
+          m.emissive = new THREE.Color('#ffaa33')
+          m.emissiveIntensity = 3
+          m.toneMapped = false
+        } else {
+          // Pole / arm — dark metal, no glow
+          m.color = new THREE.Color('#555555')
+          m.emissive = new THREE.Color(0, 0, 0)
+          m.emissiveIntensity = 0
+        }
+        m.roughness = 0.7
+        m.metalness = 0.3
+        m.envMapIntensity = 0
+        m.needsUpdate = true
+      })
+    }
+  })
 }
 
 // ─── Street lamps ───────────────────────────────────────────────────────────
 function GLBLamps() {
   const { scene: lamp } = useGLTF('/models/roads/streetlamp.glb')
+  const groupRef = useRef<THREE.Group>(null)
   const positions = useMemo(() => {
     const out: [number, number, number][] = []
     for (let x = -EXT; x <= EXT; x += ROAD_SPACING)
       for (let z = -EXT; z <= EXT; z += ROAD_SPACING)
         if ((Math.abs(x) + Math.abs(z)) % (ROAD_SPACING * 2) === 0)
-          out.push([x * W + 0.8, 0, z * W + 0.8])
+          out.push([x * W + 3.2, 0, z * W + 3.2])
     return out
   }, [])
 
-  useEffect(() => { enableShadows(lamp) }, [lamp])
+  useEffect(() => {
+    enableShadows(lamp)
+    mattifyLamp(lamp)
+    // Also traverse actual rendered group in case Clone deep-copies materials
+    if (groupRef.current) mattifyLamp(groupRef.current)
+  }, [lamp])
 
   return (
-    <group>
+    <group ref={groupRef}>
       {positions.map((pos, i) => (
         <group key={i}>
           <Clone object={lamp} position={pos} scale={SCALE.lamp} />
