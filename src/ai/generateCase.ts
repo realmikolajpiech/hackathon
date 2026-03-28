@@ -93,7 +93,7 @@ export async function generateCase(
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: 'models/gemini-2.0-flash',
+        model: 'models/gemini-3.1-flash-lite-preview',
         body: {
           contents: [{ parts: [{ text: buildPrompt(summary, cityName) }] }],
           generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
