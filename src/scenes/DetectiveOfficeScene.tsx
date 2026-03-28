@@ -1013,7 +1013,7 @@ export default function DetectiveOfficeScene() {
           dampingFactor={0.1}
           minDistance={5}
           maxDistance={25}
-          maxPolarAngle={Math.PI / 2.5}
+          maxPolarAngle={Math.PI / 1.8}
           minPolarAngle={Math.PI / 6}
         />
         <OfficeRoom />

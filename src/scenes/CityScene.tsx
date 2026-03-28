@@ -547,7 +547,7 @@ export default function CityScene() {
           dampingFactor={0.1}
           minDistance={5}
           maxDistance={40}
-          maxPolarAngle={Math.PI / 2.5}
+          maxPolarAngle={Math.PI / 1.8}
           minPolarAngle={Math.PI / 6}
         />
 
