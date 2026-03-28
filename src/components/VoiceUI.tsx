@@ -37,7 +37,7 @@ export default function VoiceUI({ onTranscript }: VoiceUIProps) {
       },
       onStatusChange: (s) => {
         if (s === 'connected') setStatus('connected')
-        if (s === 'disconnected') setStatus('idle')
+        if (s === 'disconnected') setStatus((prev) => prev === 'error' ? 'error' : 'idle')
       },
     })
 
@@ -129,7 +129,7 @@ export default function VoiceUI({ onTranscript }: VoiceUIProps) {
         {status === 'idle' && 'VOICE'}
         {status === 'connecting' && 'CONNECTING...'}
         {status === 'connected' && 'LIVE'}
-        {status === 'error' && 'ERROR'}
+        {status === 'error' && 'ERROR — check console'}
       </div>
 
       <style>{`

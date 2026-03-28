@@ -5,7 +5,6 @@ import * as THREE from 'three'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import FollowCamera from '../components/FollowCamera'
 import { useGameStore } from '../store/gameStore'
-import type { CaseSummary, CaseData } from '../store/gameStore'
 import { generateWorld } from '../ai/generateWorld'
 import { generateCase } from '../ai/generateCase'
 import { resolveCollisions, type Collider } from '../utils/collisions'
@@ -390,38 +389,17 @@ const TYPE_COLORS: Record<string, string> = {
   fraud: '#00aaff', disappearance: '#888888', extortion: '#ff6600',
 }
 
-const TYPE_MISSION: Record<string, string> = {
-  murder: 'Someone is dead. The killer is still out there — and they know how to disappear. Talk to witnesses, find the evidence, and bring them in before the trail goes cold.',
-  theft: 'Something was taken. Someone planned this and they think they got away clean. Shake down the right people, find what was stolen, and expose the thief.',
-  kidnapping: 'A person is missing and someone is pulling the strings. Every hour counts. Find the connections, follow the money, and track down who took them.',
-  fraud: 'A con is being run and someone is getting rich off lies. Dig through the paper trail, pressure the right suspects, and unravel the deception.',
-  disappearance: 'Gone without a trace — or so they want you to think. Find out what really happened to this person and who had reason to make them vanish.',
-  extortion: 'Someone is being squeezed and they came to you for help. Find out who is doing it, what leverage they have, and put a stop to it.',
-}
-
 function CorkBoardOverlay({ onClose }: { onClose: () => void }) {
   const { world, setWorld, currentCase, setCurrentCase, setPhase } = useGameStore()
+  const [loadingActId, setLoadingActId] = useState<string | null>(null)
   const [generatingWorld, setGeneratingWorld] = useState(!world)
   const [error, setError] = useState<string | null>(null)
 
-  // Intro state
-  const [introAct, setIntroAct] = useState<CaseSummary | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [pendingCase, setPendingCase] = useState<CaseData | null>(null)
-  const [generationError, setGenerationError] = useState<string | null>(null)
-  const acceptPendingRef = useRef(false)
-  const generationTokenRef = useRef(0)
-
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        if (introAct) handleDeclineAct()
-        else onClose()
-      }
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, introAct]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onClose])
 
   // Generate world on first open if not yet generated
   useEffect(() => {
@@ -435,52 +413,20 @@ function CorkBoardOverlay({ onClose }: { onClose: () => void }) {
   const acts = world?.cases ?? []
   const activeActId = world?.cases.find((c) => c.title === currentCase?.case.title)?.id ?? null
 
-  function handlePickAct(actId: string) {
-    if (isGenerating || activeActId) return
+  async function handlePickAct(actId: string) {
+    if (loadingActId || activeActId) return
     const summary = world!.cases.find((c) => c.id === actId)
     if (!summary) return
-
-    const token = ++generationTokenRef.current
-    setIntroAct(summary)
-    setIsGenerating(true)
-    setPendingCase(null)
-    setGenerationError(null)
-    acceptPendingRef.current = false
-
-    generateCase(summary, world!.city.name)
-      .then((fullCase) => {
-        if (generationTokenRef.current !== token) return
-        setPendingCase(fullCase)
-        if (acceptPendingRef.current) {
-          setCurrentCase(fullCase)
-          onClose()
-        }
-      })
-      .catch((e) => {
-        if (generationTokenRef.current !== token) return
-        setGenerationError(e instanceof Error ? e.message : String(e))
-      })
-      .finally(() => {
-        if (generationTokenRef.current === token) setIsGenerating(false)
-      })
-  }
-
-  function handleAcceptAct() {
-    if (pendingCase) {
-      setCurrentCase(pendingCase)
+    setLoadingActId(actId)
+    setError(null)
+    try {
+      const fullCase = await generateCase(summary, world!.city.name)
+      setCurrentCase(fullCase)
       onClose()
-    } else if (!generationError) {
-      acceptPendingRef.current = true
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     }
-  }
-
-  function handleDeclineAct() {
-    generationTokenRef.current++
-    setIntroAct(null)
-    setIsGenerating(false)
-    setPendingCase(null)
-    setGenerationError(null)
-    acceptPendingRef.current = false
+    setLoadingActId(null)
   }
 
   return (
@@ -715,208 +661,6 @@ function CorkBoardOverlay({ onClose }: { onClose: () => void }) {
             : 'CLICK AN ACT TO BEGIN INVESTIGATION'}
           {' · '}
           CLICK OUTSIDE TO CLOSE
-        </div>
-
-        {/* Case intro overlay — slides in on top of cork board */}
-        {introAct && (
-          <ActIntroPanel
-            act={introAct}
-            isGenerating={isGenerating}
-            hasResult={!!pendingCase}
-            generationError={generationError}
-            onAccept={handleAcceptAct}
-            onDecline={handleDeclineAct}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Act Intro Panel ──────────────────────────────────────────────────────────
-
-function ActIntroPanel({
-  act, isGenerating, hasResult, generationError, onAccept, onDecline,
-}: {
-  act: CaseSummary
-  isGenerating: boolean
-  hasResult: boolean
-  generationError: string | null
-  onAccept: () => void
-  onDecline: () => void
-}) {
-  const typeColor = TYPE_COLORS[act.type] ?? '#8B6914'
-  const mission = TYPE_MISSION[act.type] ?? 'Find the truth. Whatever it takes.'
-  const fileNumber = act.id.replace('case_', '0')
-
-  return (
-    <div
-      style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(15, 8, 2, 0.88)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        borderRadius: 0,
-        zIndex: 10,
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Case dossier paper */}
-      <div style={{
-        width: '88%', maxWidth: 520,
-        background: 'linear-gradient(135deg, #faf3e0 0%, #f0e4c0 100%)',
-        border: '1px solid rgba(0,0,0,0.15)',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.6), 3px 3px 0 rgba(0,0,0,0.08)',
-        fontFamily: '"Courier New", monospace',
-        color: '#1a0a00',
-        position: 'relative',
-        overflow: 'hidden',
-      }}>
-        {/* Red confidential stamp stripe at top */}
-        <div style={{
-          background: typeColor,
-          padding: '6px 20px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <span style={{ fontSize: 8, letterSpacing: 4, color: '#fff', textTransform: 'uppercase', opacity: 0.9 }}>
-            {act.type} investigation
-          </span>
-          <span style={{ fontSize: 8, letterSpacing: 2, color: '#fff', opacity: 0.7 }}>
-            FILE #{fileNumber}
-          </span>
-        </div>
-
-        <div style={{ padding: '20px 24px 0' }}>
-          {/* Title */}
-          <div style={{
-            fontSize: 20, fontWeight: 'bold', color: '#1a0a00',
-            letterSpacing: 2, marginBottom: 12, lineHeight: 1.2,
-          }}>
-            {act.title}
-          </div>
-
-          {/* Divider */}
-          <div style={{ borderTop: '1px solid rgba(0,0,0,0.15)', marginBottom: 14 }} />
-
-          {/* Hook */}
-          <div style={{
-            fontSize: 11, color: '#3a2010',
-            lineHeight: 1.8, fontStyle: 'italic', marginBottom: 16,
-            borderLeft: `3px solid ${typeColor}`,
-            paddingLeft: 12,
-          }}>
-            "{act.hook}"
-          </div>
-
-          {/* Details row */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr',
-            gap: 10, marginBottom: 14,
-          }}>
-            {[
-              { label: 'VICTIM', value: act.victim_name },
-              { label: 'SCENE', value: act.location },
-            ].map(({ label, value }) => (
-              <div key={label} style={{
-                background: 'rgba(0,0,0,0.05)',
-                border: '1px solid rgba(0,0,0,0.1)',
-                padding: '8px 10px',
-              }}>
-                <div style={{ fontSize: 7, letterSpacing: 3, color: '#7a5a30', marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 11, color: '#1a0a00', fontWeight: 'bold' }}>{value}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Mission */}
-          <div style={{
-            background: 'rgba(0,0,0,0.06)',
-            border: `1px solid ${typeColor}44`,
-            padding: '10px 12px',
-            marginBottom: 20,
-          }}>
-            <div style={{ fontSize: 7, letterSpacing: 3, color: typeColor, marginBottom: 6, textTransform: 'uppercase' }}>
-              Your Mission
-            </div>
-            <div style={{ fontSize: 10, color: '#3a2010', lineHeight: 1.8 }}>
-              {mission}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer actions */}
-        <div style={{
-          borderTop: '1px solid rgba(0,0,0,0.12)',
-          padding: '14px 24px 18px',
-          display: 'flex', flexDirection: 'column', gap: 10,
-          background: 'rgba(0,0,0,0.04)',
-        }}>
-          {generationError && (
-            <div style={{
-              fontSize: 9, color: '#cc2222',
-              padding: '6px 10px', border: '1px solid #cc222233',
-              background: 'rgba(200,0,0,0.06)',
-            }}>
-              Failed to load case. Please try another.
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={onDecline}
-              style={{
-                background: 'transparent',
-                border: '1px solid rgba(0,0,0,0.2)',
-                color: '#7a5a30',
-                fontFamily: '"Courier New", monospace',
-                fontSize: 9, letterSpacing: 2,
-                padding: '8px 16px',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-              }}
-            >
-              ← Decline
-            </button>
-
-            <button
-              onClick={generationError ? onDecline : onAccept}
-              style={{
-                flex: 1,
-                background: generationError ? 'rgba(180,0,0,0.1)' : typeColor,
-                border: `1px solid ${generationError ? '#cc2222' : typeColor}`,
-                color: generationError ? '#cc2222' : '#fff',
-                fontFamily: '"Courier New", monospace',
-                fontSize: 10, letterSpacing: 3,
-                padding: '10px 20px',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-                fontWeight: 'bold',
-                boxShadow: generationError ? 'none' : '0 2px 8px rgba(0,0,0,0.25)',
-              }}
-            >
-              {generationError
-                ? '↩ Try another'
-                : isGenerating && !hasResult
-                  ? 'Opening file...'
-                  : 'Take the case →'}
-            </button>
-          </div>
-
-          {isGenerating && !hasResult && !generationError && (
-            <div style={{
-              fontSize: 7, color: '#8B6914', letterSpacing: 3,
-              textTransform: 'uppercase', textAlign: 'center',
-            }}>
-              Building case · placing suspects · hiding evidence
-            </div>
-          )}
-          {hasResult && (
-            <div style={{
-              fontSize: 7, color: typeColor, letterSpacing: 3,
-              textTransform: 'uppercase', textAlign: 'center', opacity: 0.8,
-            }}>
-              Case ready
-            </div>
-          )}
         </div>
       </div>
     </div>
