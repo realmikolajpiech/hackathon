@@ -69,17 +69,13 @@ Return ONLY valid JSON with this exact structure:
 }
 
 Rules:
-- Exactly 3 NPCs with ids npc_1, npc_2, npc_3. Exactly one is the culprit.
-- Other NPCs have indirect knowledge but are innocent.
-- Exactly 4 clues.
-- Exactly 5 evidence_items: 3 that link_to the culprit, 1 that links_to an innocent NPC (red herring), 1 with links_to null (neutral/atmospheric). Evidence must be unique physical objects specific to this case (e.g. receipts, weapons, personal items, stained clothing, torn letters, matchbooks from specific locations).
-- solution.evidence must reference 2-3 of the evidence item ids that link to the culprit.
-- Exactly 4 buildings: one per NPC plus one police station (npc_id: null).
-- Building types must be one of: bar, apartments, warehouse, office, police.
-- Exactly one interior entry per building type used in map_layout.
-- Distribute evidence_items across different interiors — each interior should have 1-2 objects with evidence_ids.
-- 4-6 objects per interior total.
-- Building positions: spread out, e.g. [0,0,0], [5,0,-3], [-4,0,2], [1,0,5].
+- NPCs: let the case dictate how many suspects are needed (typically 2-5). Assign ids npc_1, npc_2, etc. Exactly one is the culprit. The rest have partial knowledge, alibis, or motives that make them credible red herrings.
+- Clues: as many as the case warrants — enough to give the player meaningful leads without hand-holding. Typically 3-6.
+- Evidence items: enough to build a coherent case. Some should implicate the culprit, at least one should be a red herring pointing elsewhere, one or two may be atmospheric. solution.evidence must reference 2-3 culprit-linked evidence ids.
+- Buildings: one per NPC plus one police station (npc_id: null). Building types from: bar, apartments, warehouse, office, police. One interior per building.
+- Distribute evidence across interiors naturally — where it would realistically be found.
+- 3-7 objects per interior.
+- Building positions: spread out across the map, e.g. [0,0,0], [5,0,-3], [-4,0,2], [1,0,5], [−2,0,−5].
 - Tone: dark, moody, 1950s noir. Clipped prose. Rain. Cigarette smoke.
 - NO markdown, NO explanation, ONLY the JSON object`
 }
