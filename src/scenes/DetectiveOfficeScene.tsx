@@ -323,10 +323,12 @@ function OfficePlayer({ onPositionChange }: { onPositionChange: (pos: THREE.Vect
 const BOARD_POS  = new THREE.Vector3(-1.5, 0, -3.8)
 const DESK_POS   = new THREE.Vector3(3.0,  0, -1.5)
 
-function ProximityHints({ playerPos, onBoard, onDesk }: {
+function ProximityHints({ playerPos, onBoard, onDesk, boardOpen, deskOpen }: {
   playerPos: React.MutableRefObject<THREE.Vector3>
   onBoard: () => void
   onDesk: () => void
+  boardOpen?: boolean
+  deskOpen?: boolean
 }) {
   const [nearBoard, setNearBoard] = useState(false)
   const [nearDesk, setNearDesk]   = useState(false)
@@ -350,7 +352,7 @@ function ProximityHints({ playerPos, onBoard, onDesk }: {
 
   return (
     <>
-      {nearBoard && (
+      {nearBoard && !boardOpen && (
         <Html position={[-1.5, 2.2, -3.8]} center distanceFactor={12}>
           <div style={{
             color: '#d4b483', fontSize: 11, letterSpacing: 2,
@@ -362,7 +364,7 @@ function ProximityHints({ playerPos, onBoard, onDesk }: {
           </div>
         </Html>
       )}
-      {nearDesk && (
+      {nearDesk && !deskOpen && (
         <Html position={[3.0, 2.2, -2.0]} center distanceFactor={12}>
           <div style={{
             color: '#88cc88', fontSize: 11, letterSpacing: 2,
@@ -392,6 +394,12 @@ function CorkBoardOverlay({ onClose }: { onClose: () => void }) {
   const [loadingActId, setLoadingActId] = useState<string | null>(null)
   const [generatingWorld, setGeneratingWorld] = useState(!world)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   // Generate world on first open if not yet generated
   useEffect(() => {
@@ -675,19 +683,26 @@ function ComputerOverlay({ onClose, onSendToLaw }: {
 
   const [selectedSuspect, setSelectedSuspect] = useState<string | null>(null)
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   if (!currentCase) {
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 50,
-        background: 'rgba(0,0,0,0.88)',
+        background: 'rgba(0,0,0,0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: '"Courier New", monospace',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
       }} onClick={onClose}>
         <div style={{
-          background: '#0a0f0a', border: '2px solid #1a3a1a',
-          padding: '30px 40px', color: '#336633', fontSize: 13, letterSpacing: 3,
+          background: '#fff', borderRadius: 8,
+          padding: '30px 40px', color: '#555', fontSize: 14,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
         }}>
-          NO ACTIVE CASE — GO TO CASE BOARD FIRST
+          No active case — open the Case Board first.
         </div>
       </div>
     )
@@ -709,188 +724,209 @@ function ComputerOverlay({ onClose, onSendToLaw }: {
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 50,
-        background: 'rgba(0,0,0,0.9)',
+        background: 'rgba(0,0,0,0.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: '"Courier New", monospace',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
       onClick={onClose}
     >
-      {/* Monitor frame */}
+      {/* App window */}
       <div
         style={{
-          width: 720, maxWidth: '90vw', maxHeight: '85vh',
-          background: '#111', border: '12px solid #1e1e1e',
-          borderRadius: 6,
-          boxShadow: '0 0 60px rgba(0,0,0,0.9), inset 0 0 30px rgba(0,0,0,0.5)',
+          width: 760, maxWidth: '92vw', maxHeight: '88vh',
+          background: '#f0f0f0',
+          borderRadius: 10,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Monitor top bar */}
+        {/* Title bar */}
         <div style={{
-          background: 'linear-gradient(90deg, #0a140a, #081008)',
-          borderBottom: '1px solid #1a3a1a',
-          padding: '6px 16px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: 'linear-gradient(180deg, #e8e8e8, #d8d8d8)',
+          borderBottom: '1px solid #bbb',
+          padding: '8px 14px',
+          display: 'flex', alignItems: 'center', gap: 8,
+          userSelect: 'none',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0a4a0a' }} />
-            <div style={{ fontSize: 9, color: '#55aa55', letterSpacing: 3 }}>
-              PRECINCT 7 — EVIDENCE TERMINAL
-            </div>
-          </div>
+          {/* Traffic lights */}
           <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', color: '#336633',
-            cursor: 'pointer', fontSize: 14, fontFamily: 'inherit',
-          }}>✕</button>
+            width: 12, height: 12, borderRadius: '50%',
+            background: '#ff5f57', border: '1px solid #e0443e',
+            cursor: 'pointer', flexShrink: 0,
+          }} />
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', border: '1px solid #d6a12a' }} />
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', border: '1px solid #1aab29' }} />
+          <div style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#444', marginLeft: -48 }}>
+            Suspects — Evidence Log
+          </div>
         </div>
 
-        {/* Screen content */}
+        {/* Toolbar */}
         <div style={{
-          flex: 1, padding: 18, display: 'flex', gap: 16,
-          background: '#0a0f0a', overflow: 'hidden',
-          color: '#88cc88',
+          background: '#fafafa', borderBottom: '1px solid #ddd',
+          padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 12,
         }}>
-          {/* Left: suspects */}
-          <div style={{ width: 200, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 8, color: '#336633', letterSpacing: 3, marginBottom: 4 }}>
-              SUSPECTS
+          <div style={{ fontSize: 12, color: '#666' }}>📁 Case: <strong style={{ color: '#222' }}>{currentCase.case.title}</strong></div>
+        </div>
+
+        {/* Main content */}
+        <div style={{
+          flex: 1, display: 'flex', overflow: 'hidden',
+        }}>
+          {/* Left sidebar: suspects */}
+          <div style={{
+            width: 210, flexShrink: 0,
+            background: '#f5f5f5', borderRight: '1px solid #ddd',
+            display: 'flex', flexDirection: 'column',
+            overflow: 'auto',
+          }}>
+            <div style={{ padding: '10px 14px 6px', fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>
+              Suspects
             </div>
             {npcs.map((npc) => {
               const count = (suspectEvidence[npc.id] ?? []).length
+              const active = selectedSuspect === npc.id
               return (
                 <button
                   key={npc.id}
                   onClick={() => setSelectedSuspect(npc.id === selectedSuspect ? null : npc.id)}
                   style={{
-                    background: selectedSuspect === npc.id ? '#0d200d' : 'transparent',
-                    border: `1px solid ${selectedSuspect === npc.id ? '#55aa55' : '#1a3a1a'}`,
-                    padding: '8px 10px', cursor: 'pointer',
-                    textAlign: 'left', fontFamily: 'inherit',
-                    transition: 'all 0.1s',
+                    background: active ? '#0057d8' : 'transparent',
+                    border: 'none',
+                    borderBottom: '1px solid #e8e8e8',
+                    padding: '10px 14px', cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background 0.1s',
                   }}
                 >
-                  <div style={{ fontSize: 11, color: selectedSuspect === npc.id ? '#88cc88' : '#55aa55' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: active ? '#fff' : '#222' }}>
                     {npc.name}
                   </div>
-                  <div style={{ fontSize: 8, color: '#336633', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: active ? 'rgba(255,255,255,0.75)' : '#888', marginTop: 2 }}>
                     {npc.occupation}
                   </div>
                   {count > 0 && (
                     <div style={{
                       marginTop: 5, display: 'inline-block',
-                      background: '#55aa55', color: '#0a0f0a',
-                      fontSize: 8, padding: '1px 6px', letterSpacing: 1,
+                      background: active ? 'rgba(255,255,255,0.25)' : '#0057d8',
+                      color: '#fff',
+                      fontSize: 10, padding: '1px 7px', borderRadius: 10, fontWeight: 600,
                     }}>
-                      {count} PROOF{count > 1 ? 'S' : ''} PINNED
+                      {count} linked
                     </div>
                   )}
                 </button>
               )
             })}
 
-            {/* Send to law */}
             <div style={{ flex: 1 }} />
+
+            {/* Send to law */}
             {selectedSuspect && (
-              <>
+              <div style={{ padding: 14, borderTop: '1px solid #ddd' }}>
                 {pinnedForSelected.length === 0 && (
-                  <div style={{ fontSize: 8, color: '#886622', letterSpacing: 1, lineHeight: 1.4 }}>
-                    ⚠ Pin at least one proof before filing
+                  <div style={{ fontSize: 11, color: '#b06000', marginBottom: 8, lineHeight: 1.4 }}>
+                    Link at least one piece of evidence first.
                   </div>
                 )}
                 <button
                   onClick={() => onSendToLaw(selectedSuspect, pinnedForSelected)}
+                  disabled={pinnedForSelected.length === 0}
                   style={{
-                    background: pinnedForSelected.length > 0 ? '#3a0000' : '#111',
-                    border: `2px solid ${pinnedForSelected.length > 0 ? '#ff0055' : '#1a3a1a'}`,
-                    color: pinnedForSelected.length > 0 ? '#ff4477' : '#336633',
-                    padding: '10px 8px', cursor: 'pointer',
-                    fontFamily: 'inherit', fontSize: 10, letterSpacing: 2,
-                    lineHeight: 1.4,
-                    boxShadow: pinnedForSelected.length > 0 ? '0 0 16px rgba(255,0,85,0.2)' : 'none',
+                    width: '100%',
+                    background: pinnedForSelected.length > 0 ? '#c0392b' : '#ccc',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '9px 0', cursor: pinnedForSelected.length > 0 ? 'pointer' : 'not-allowed',
+                    borderRadius: 6, fontWeight: 700, fontSize: 13,
+                    boxShadow: pinnedForSelected.length > 0 ? '0 2px 6px rgba(192,57,43,0.4)' : 'none',
+                    transition: 'all 0.1s',
                   }}
                 >
-                  ⚖ SEND TO<br />LAW
+                  ⚖ File Charges
                 </button>
-              </>
+              </div>
             )}
           </div>
 
-          {/* Divider */}
-          <div style={{ width: 1, background: '#1a3a1a' }} />
-
           {/* Right: evidence list */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto' }}>
-            <div style={{ fontSize: 8, color: '#336633', letterSpacing: 3, marginBottom: 4 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+            <div style={{ padding: '10px 18px 8px', borderBottom: '1px solid #eee', fontSize: 12, color: '#555' }}>
               {selectedSuspect
-                ? `PIN PROOF TO ${npcs.find(n => n.id === selectedSuspect)?.name.toUpperCase()}`
-                : 'SELECT A SUSPECT ON THE LEFT'}
+                ? <>Link evidence to <strong>{npcs.find(n => n.id === selectedSuspect)?.name}</strong></>
+                : 'Select a suspect to link evidence'}
             </div>
 
-            {collectedEvidence.length === 0 && (
-              <div style={{
-                fontSize: 11, color: '#225522', fontStyle: 'italic',
-                padding: '20px 0',
-              }}>
-                No evidence collected yet.<br />
-                Investigate locations in the city first.
-              </div>
-            )}
-
-            {collectedEvidence.map((ev) => {
-              const pinned = pinnedForSelected.includes(ev.id)
-              const canToggle = !!selectedSuspect
-
-              return (
-                <div
-                  key={ev.id}
-                  onClick={() => canToggle && toggleEvidence(ev.id)}
-                  style={{
-                    border: `1px solid ${pinned ? '#55aa55' : '#1a3a1a'}`,
-                    padding: '8px 12px',
-                    background: pinned ? 'rgba(85,170,85,0.08)' : 'transparent',
-                    cursor: canToggle ? 'pointer' : 'default',
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    opacity: !canToggle ? 0.5 : 1,
-                    transition: 'all 0.12s',
-                  }}
-                >
-                  {/* Checkbox */}
-                  <div style={{
-                    width: 14, height: 14, flexShrink: 0,
-                    border: `1px solid ${pinned ? '#55aa55' : '#225522'}`,
-                    background: pinned ? '#55aa55' : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 9, color: '#0a0f0a',
-                  }}>
-                    {pinned ? '✓' : ''}
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: pinned ? '#88cc88' : '#55aa55', marginBottom: 2 }}>
-                      {ev.name}
-                    </div>
-                    <div style={{ fontSize: 9, color: '#336633' }}>
-                      Found at: {ev.found_at}
-                    </div>
-                    <div style={{ fontSize: 9, color: '#225522', marginTop: 2, lineHeight: 1.4 }}>
-                      {ev.description}
-                    </div>
-                  </div>
-
-                  {pinned && (
-                    <div style={{
-                      fontSize: 8, color: '#55aa55', letterSpacing: 1,
-                      background: 'rgba(85,170,85,0.1)', padding: '2px 6px',
-                      border: '1px solid #55aa5533',
-                    }}>
-                      PINNED
-                    </div>
-                  )}
+            <div style={{ flex: 1, overflow: 'auto', padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {collectedEvidence.length === 0 && (
+                <div style={{
+                  fontSize: 13, color: '#aaa', fontStyle: 'italic',
+                  padding: '30px 0', textAlign: 'center',
+                }}>
+                  No evidence collected yet.<br />
+                  <span style={{ fontSize: 12 }}>Investigate locations in the city first.</span>
                 </div>
-              )
-            })}
+              )}
+
+              {collectedEvidence.map((ev) => {
+                const pinned = pinnedForSelected.includes(ev.id)
+                const canToggle = !!selectedSuspect
+
+                return (
+                  <div
+                    key={ev.id}
+                    onClick={() => canToggle && toggleEvidence(ev.id)}
+                    style={{
+                      border: `1.5px solid ${pinned ? '#0057d8' : '#e0e0e0'}`,
+                      borderRadius: 7,
+                      padding: '10px 14px',
+                      background: pinned ? '#eef4ff' : '#fafafa',
+                      cursor: canToggle ? 'pointer' : 'default',
+                      display: 'flex', alignItems: 'flex-start', gap: 12,
+                      opacity: !canToggle ? 0.5 : 1,
+                      transition: 'all 0.12s',
+                      boxShadow: pinned ? '0 0 0 3px rgba(0,87,216,0.08)' : 'none',
+                    }}
+                  >
+                    {/* Checkbox */}
+                    <div style={{
+                      width: 16, height: 16, flexShrink: 0, marginTop: 2,
+                      borderRadius: 4,
+                      border: `2px solid ${pinned ? '#0057d8' : '#bbb'}`,
+                      background: pinned ? '#0057d8' : '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, color: '#fff', fontWeight: 700,
+                    }}>
+                      {pinned ? '✓' : ''}
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#222', marginBottom: 2 }}>
+                        {ev.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#888' }}>
+                        Found at: {ev.found_at}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#555', marginTop: 4, lineHeight: 1.5 }}>
+                        {ev.description}
+                      </div>
+                    </div>
+
+                    {pinned && (
+                      <div style={{
+                        fontSize: 11, color: '#0057d8', fontWeight: 600,
+                        background: '#ddeaff', padding: '2px 8px', borderRadius: 10,
+                        flexShrink: 0,
+                      }}>
+                        Linked
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1030,6 +1066,8 @@ export default function DetectiveOfficeScene() {
           playerPos={playerPos}
           onBoard={() => setShowBoard(true)}
           onDesk={() => setShowComputer(true)}
+          boardOpen={showBoard}
+          deskOpen={showComputer}
         />
         <Suspense fallback={
           <group position={[0, 0, 2.5]}>
