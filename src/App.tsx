@@ -4,6 +4,7 @@ import CityScene from './scenes/CityScene'
 import InteriorScene3D from './scenes/InteriorScene3D'
 import CaseSelectionScene from './scenes/CaseSelectionScene'
 import ResolutionScene from './scenes/ResolutionScene'
+import DetectiveOfficeScene from './scenes/DetectiveOfficeScene'
 
 export default function App() {
   const phase = useGameStore((s) => s.phase)
@@ -14,6 +15,7 @@ export default function App() {
       {phase === 'case_selection' && <CaseSelectionScene />}
       {phase === 'city' && <CityScene />}
       {phase === 'interior' && <InteriorScene3D />}
+      {phase === 'detective_office' && <DetectiveOfficeScene />}
       {phase === 'resolution' && <ResolutionScene />}
     </>
   )

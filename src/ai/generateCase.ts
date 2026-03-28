@@ -72,7 +72,7 @@ Rules:
 - NPCs: let the case dictate how many suspects are needed (typically 2-5). Assign ids npc_1, npc_2, etc. Exactly one is the culprit. The rest have partial knowledge, alibis, or motives that make them credible red herrings.
 - Clues: as many as the case warrants — enough to give the player meaningful leads without hand-holding. Typically 3-6.
 - Evidence items: enough to build a coherent case. Some should implicate the culprit, at least one should be a red herring pointing elsewhere, one or two may be atmospheric. solution.evidence must reference 2-3 culprit-linked evidence ids.
-- Buildings: one per NPC plus one police station (npc_id: null). Building types from: bar, apartments, warehouse, office, police. One interior per building.
+- Buildings: one per NPC plus one police station (npc_id: null). Building types MUST be exactly one of: bar, apartments, warehouse, office, police. One interior per building. Each interior's building_type MUST exactly match its corresponding building's type field (same string, same spelling).
 - Distribute evidence across interiors naturally — where it would realistically be found.
 - 3-7 objects per interior.
 - Building positions: spread out across the map, e.g. [0,0,0], [5,0,-3], [-4,0,2], [1,0,5], [−2,0,−5].

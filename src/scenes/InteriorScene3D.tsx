@@ -192,12 +192,13 @@ const BUILDING_DECOR: Record<string, DecorItem[]> = {
 
 // ─── Interactive object positions ─────────────────────────────────────────────
 
+// Positions chosen to avoid overlapping with BUILDING_DECOR (which clusters near walls at z<-2 and |x|>2)
 const EXAMINE_POSITIONS: [number, number, number][] = [
-  [-2.0, 0, -2.0],
-  [ 0.0, 0, -2.6],
-  [ 2.0, 0, -2.0],
-  [-2.6, 0,  0.0],
-  [ 2.6, 0,  0.0],
+  [-1.2, 0, -1.0],
+  [ 1.2, 0, -1.0],
+  [ 0.0, 0, -0.5],
+  [-1.8, 0,  0.6],
+  [ 1.8, 0,  0.6],
   [ 0.0, 0,  1.2],
 ]
 
@@ -230,7 +231,18 @@ function GLBProp({
   scale?: number
 }) {
   const { scene } = useGLTF(url)
-  const cloned = useMemo(() => scene.clone(true), [scene])
+  const cloned = useMemo(() => {
+    const clone = scene.clone(true)
+    clone.traverse((node) => {
+      const mesh = node as THREE.Mesh
+      if (mesh.isMesh) {
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map((m) => m.clone())
+          : mesh.material.clone()
+      }
+    })
+    return clone
+  }, [scene])
   return (
     <primitive
       object={cloned}
@@ -418,13 +430,13 @@ function ExaminableObject({ obj, index, position, examined, onExamine }: Examina
         </Html>
       )}
 
-      {/* Invisible click hitbox */}
+      {/* Click hitbox — transparent material keeps raycasting active (visible={false} disables it) */}
       <mesh
         position={[0, 1, 0]}
         onClick={(e) => { e.stopPropagation(); if (!examined) onExamine() }}
-        visible={false}
       >
         <boxGeometry args={[1.8, 2.2, 1.8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
     </group>
   )
@@ -463,6 +475,53 @@ function NPCCharacter({ npcId, npcName, neonColor }: { npcId: string; npcName: s
       </Html>
     </group>
   )
+}
+
+// ─── Object proximity checker ────────────────────────────────────────────────
+
+function ObjectProximityChecker({
+  objects,
+  examinePositions,
+  examinedObjects,
+  playerPos,
+  onNearbyChange,
+}: {
+  objects: InteriorObject[]
+  examinePositions: [number, number, number][]
+  examinedObjects: string[]
+  playerPos: React.MutableRefObject<THREE.Vector3>
+  onNearbyChange: (obj: { obj: InteriorObject; index: number } | null) => void
+}) {
+  const lastId = useRef<string | null>(null)
+  const frameSkip = useRef(0)
+
+  useFrame(() => {
+    if (++frameSkip.current % 6 !== 0) return
+    const pos = playerPos.current
+    let nearest: { obj: InteriorObject; index: number } | null = null
+    let nearestDist = Infinity
+
+    objects.forEach((obj, i) => {
+      if (examinedObjects.includes(obj.id)) return
+      if (i >= examinePositions.length) return
+      const ep = examinePositions[i]
+      const dx = pos.x - ep[0]
+      const dz = pos.z - ep[2]
+      const dist = dx * dx + dz * dz
+      if (dist < 4 && dist < nearestDist) {
+        nearest = { obj, index: i }
+        nearestDist = dist
+      }
+    })
+
+    const id = nearest?.obj.id ?? null
+    if (id !== lastId.current) {
+      lastId.current = id
+      onNearbyChange(nearest)
+    }
+  })
+
+  return null
 }
 
 // ─── Interior player controller ───────────────────────────────────────────────
@@ -560,7 +619,27 @@ export default function InteriorScene3D() {
     evidenceName?: string
   } | null>(null)
   const [showNotebook, setShowNotebook] = useState(false)
+  const [nearbyObj, setNearbyObj] = useState<{ obj: InteriorObject; index: number } | null>(null)
+  const nearbyObjRef = useRef<{ obj: InteriorObject; index: number } | null>(null)
   const playerPos = useRef(new THREE.Vector3())
+
+  function handleNearbyObjChange(nearby: { obj: InteriorObject; index: number } | null) {
+    nearbyObjRef.current = nearby
+    setNearbyObj(nearby)
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== 'e') return
+      const nearby = nearbyObjRef.current
+      if (!nearby) return
+      const { examinedObjects: examined } = useGameStore.getState()
+      if (!examined.includes(nearby.obj.id)) handleExamine(nearby.obj)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   if (!currentInterior || !currentCase) return null
 
@@ -650,6 +729,13 @@ export default function InteriorScene3D() {
 
           <InteriorPlayer onPositionChange={(p) => playerPos.current.copy(p)} />
           <FollowCamera target={playerPos.current} />
+          <ObjectProximityChecker
+            objects={interior.objects.slice(0, 6)}
+            examinePositions={EXAMINE_POSITIONS}
+            examinedObjects={examinedObjects}
+            playerPos={playerPos}
+            onNearbyChange={handleNearbyObjChange}
+          />
         </Suspense>
       </Canvas>
 
@@ -743,9 +829,23 @@ export default function InteriorScene3D() {
           {interior.atmosphere}
         </div>
         <div style={{ fontSize: 11, color: neonColor, opacity: 0.5, letterSpacing: 1 }}>
-          WASD · CLICK YELLOW OBJECTS TO EXAMINE
+          WASD · E OR CLICK TO EXAMINE
         </div>
       </div>
+
+      {/* E-to-examine hint */}
+      {nearbyObj && !examinePopup && !activeNPC && (
+        <div style={{
+          position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,0,0,0.85)', border: '1px solid #ffdd00',
+          color: '#fff', padding: '8px 20px',
+          fontFamily: '"Courier New", monospace', fontSize: 13, letterSpacing: 2,
+          pointerEvents: 'none', textShadow: '0 0 8px #ffdd00', zIndex: 25,
+        }}>
+          <span style={{ color: '#ffdd00', fontWeight: 'bold' }}>E</span>
+          {' '}— {nearbyObj.obj.name.toUpperCase()}
+        </div>
+      )}
 
       {/* Bottom-right: object count */}
       <div style={{

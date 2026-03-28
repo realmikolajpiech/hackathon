@@ -300,7 +300,17 @@ export default function CityScene() {
   const buildings = currentCase.map_layout.buildings
 
   function handleBuildingInteract(npcId: string | null, buildingType: string) {
-    const interior = currentCase!.interiors?.find((i) => i.building_type === buildingType)
+    const type = buildingType.toLowerCase().trim()
+    const interiors = currentCase!.interiors ?? []
+
+    // Exact match first, then partial match (handles AI inconsistencies like "police" vs "police_station")
+    const interior =
+      interiors.find((i) => i.building_type.toLowerCase().trim() === type) ??
+      interiors.find((i) => {
+        const bt = i.building_type.toLowerCase().trim()
+        return bt.includes(type) || type.includes(bt)
+      })
+
     if (interior) { setCurrentInterior(interior); setPhase('interior'); return }
     if (npcId) {
       const npc = currentCase!.npcs.find((n) => n.id === npcId)
@@ -485,6 +495,11 @@ export default function CityScene() {
           color: '#d4b483', padding: '6px 14px',
           cursor: 'pointer', fontFamily: '"Courier New", monospace', fontSize: 11, letterSpacing: 1,
         }}>NOTEBOOK</button>
+        <button onClick={() => setPhase('detective_office')} style={{
+          background: '#0a0805', border: '1px solid #8B6914',
+          color: '#d4b483', padding: '6px 14px',
+          cursor: 'pointer', fontFamily: '"Courier New", monospace', fontSize: 11, letterSpacing: 1,
+        }}>⚖ OFFICE</button>
         <button onClick={() => setPhase('case_selection')} style={{
           background: '#0a0a1a', border: '1px solid #2a2a3a',
           color: '#555', padding: '6px 14px',

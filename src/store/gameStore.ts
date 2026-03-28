@@ -87,6 +87,7 @@ type GamePhase =
   | 'case_selection'
   | 'city'
   | 'interior'
+  | 'detective_office'
   | 'resolution'
 
 interface GameState {
@@ -103,6 +104,7 @@ interface GameState {
   }
   dialogHistory: { npcId: string; messages: Message[] }[]
   accusation: string | null
+  suspectEvidence: Record<string, string[]>  // npcId -> evidenceIds pinned to them
   isLoading: boolean
   voiceActive: boolean
   inventoryOpen: boolean
@@ -118,6 +120,8 @@ interface GameState {
   addNote: (note: string) => void
   addSuspicion: (suspicion: string) => void
   addMessage: (npcId: string, message: Message) => void
+  assignEvidenceToSuspect: (npcId: string, evidenceId: string) => void
+  removeEvidenceFromSuspect: (npcId: string, evidenceId: string) => void
   accuse: (npcId: string) => void
   setLoading: (loading: boolean) => void
   setVoiceActive: (active: boolean) => void
@@ -128,7 +132,7 @@ interface GameState {
 }
 
 const initialState = {
-  phase: 'menu' as GamePhase,
+  phase: 'detective_office' as GamePhase,
   world: null,
   currentCase: null,
   currentInterior: null,
@@ -138,6 +142,7 @@ const initialState = {
   notebook: { clues: [] as string[], suspicions: [] as string[] },
   dialogHistory: [] as { npcId: string; messages: Message[] }[],
   accusation: null,
+  suspectEvidence: {} as Record<string, string[]>,
   isLoading: false,
   voiceActive: false,
   inventoryOpen: false,
@@ -182,6 +187,19 @@ export const useGameStore = create<GameState>((set) => ({
       }
       return { dialogHistory: [...s.dialogHistory, { npcId, messages: [message] }] }
     }),
+  assignEvidenceToSuspect: (npcId, evidenceId) =>
+    set((s) => {
+      const current = s.suspectEvidence[npcId] ?? []
+      if (current.includes(evidenceId)) return s
+      return { suspectEvidence: { ...s.suspectEvidence, [npcId]: [...current, evidenceId] } }
+    }),
+  removeEvidenceFromSuspect: (npcId, evidenceId) =>
+    set((s) => ({
+      suspectEvidence: {
+        ...s.suspectEvidence,
+        [npcId]: (s.suspectEvidence[npcId] ?? []).filter((e) => e !== evidenceId),
+      },
+    })),
   accuse: (npcId) => set({ accusation: npcId, phase: 'resolution' }),
   setLoading: (loading) => set({ isLoading: loading }),
   setVoiceActive: (active) => set({ voiceActive: active }),
