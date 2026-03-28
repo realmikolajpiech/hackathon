@@ -84,25 +84,38 @@ export async function generateCase(
   summary: CaseSummary,
   cityName: string
 ): Promise<CaseData> {
-  const response = await fetch('/api/gemini', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'models/gemini-3.1-flash-lite-preview',
-      body: {
-        contents: [{ parts: [{ text: buildPrompt(summary, cityName) }] }],
-        generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
-      },
-    }),
-  })
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(`Gemini API ${response.status}: ${body}`)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 45_000)
+
+  try {
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'models/gemini-2.0-flash',
+        body: {
+          contents: [{ parts: [{ text: buildPrompt(summary, cityName) }] }],
+          generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
+        },
+      }),
+    })
+    if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Gemini API ${response.status}: ${body}`)
+    }
+    const data = await response.json()
+    const raw: string = data.candidates[0].content.parts[0].text
+    const start = raw.indexOf('{')
+    const end = raw.lastIndexOf('}')
+    if (start === -1 || end === -1) throw new Error('No JSON object found in response')
+    return JSON.parse(raw.slice(start, end + 1)) as CaseData
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Case generation timed out — check your network connection')
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
   }
-  const data = await response.json()
-  const raw: string = data.candidates[0].content.parts[0].text
-  const start = raw.indexOf('{')
-  const end = raw.lastIndexOf('}')
-  if (start === -1 || end === -1) throw new Error('No JSON object found in response')
-  return JSON.parse(raw.slice(start, end + 1)) as CaseData
 }

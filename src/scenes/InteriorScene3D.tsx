@@ -664,12 +664,21 @@ export default function InteriorScene3D() {
 
       {/* ── 3D Canvas ── */}
       <Canvas
-        camera={{ position: [10, 10, 10], fov: 40, near: 0.1, far: 200 }}
+        camera={{ position: [6, 8, 6], fov: 45, near: 0.1, far: 200 }}
         shadows
         style={{ position: 'absolute', inset: 0 }}
       >
+        <InteriorRoom buildingType={interior.building_type} />
+        <FollowCamera target={playerPos.current} />
+        <ObjectProximityChecker
+          objects={interior.objects.slice(0, 6)}
+          examinePositions={EXAMINE_POSITIONS}
+          examinedObjects={examinedObjects}
+          playerPos={playerPos}
+          onNearbyChange={handleNearbyObjChange}
+        />
+
         <Suspense fallback={null}>
-          <InteriorRoom buildingType={interior.building_type} />
           <BuildingDecor buildingType={interior.building_type} />
 
           {interior.objects.slice(0, 6).map((obj, i) => (
@@ -690,21 +699,22 @@ export default function InteriorScene3D() {
               neonColor={neonColor}
             />
           )}
+        </Suspense>
 
+        <Suspense fallback={
+          <group position={[0, 0, 2.2]}>
+            <mesh position={[0, 0.5, 0]}>
+              <capsuleGeometry args={[0.15, 0.4, 8, 16]} />
+              <meshLambertMaterial color="#4488cc" />
+            </mesh>
+          </group>
+        }>
           <Player
             onPositionChange={(p) => playerPos.current.copy(p)}
             bounds={3.1}
             startPosition={[0, 0, 2.2]}
             playerLight
             colliders={interiorColliders}
-          />
-          <FollowCamera target={playerPos.current} />
-          <ObjectProximityChecker
-            objects={interior.objects.slice(0, 6)}
-            examinePositions={EXAMINE_POSITIONS}
-            examinedObjects={examinedObjects}
-            playerPos={playerPos}
-            onNearbyChange={handleNearbyObjChange}
           />
         </Suspense>
       </Canvas>

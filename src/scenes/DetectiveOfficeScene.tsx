@@ -907,14 +907,23 @@ export default function DetectiveOfficeScene() {
   const [showComputer, setShowComputer] = useState(false)
   const [result, setResult]             = useState<ResultState | null>(null)
   const [loadingWorld, setLoadingWorld] = useState(false)
+  const [worldError, setWorldError] = useState<string | null>(null)
+
+  function loadWorld() {
+    setLoadingWorld(true)
+    setWorldError(null)
+    generateWorld()
+      .then((w) => { setWorld(w); setLoadingWorld(false) })
+      .catch((e) => {
+        setWorldError(e instanceof Error ? e.message : String(e))
+        setLoadingWorld(false)
+      })
+  }
 
   // Auto-generate world on first load
   useEffect(() => {
     if (world) return
-    setLoadingWorld(true)
-    generateWorld()
-      .then((w) => { setWorld(w); setLoadingWorld(false) })
-      .catch(() => setLoadingWorld(false))
+    loadWorld()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSendToLaw(npcId: string, evidenceIds: string[]) {
@@ -952,19 +961,26 @@ export default function DetectiveOfficeScene() {
     }}>
       {/* 3D Canvas */}
       <Canvas
-        camera={{ position: [10, 10, 10], fov: 40, near: 0.1, far: 200 }}
+        camera={{ position: [6, 8, 6], fov: 45, near: 0.1, far: 200 }}
         shadows
         style={{ position: 'absolute', inset: 0 }}
       >
-        <Suspense fallback={null}>
-          <OfficeRoom />
+        <OfficeRoom />
+        <FollowCamera target={playerPos.current} />
+        <ProximityHints
+          playerPos={playerPos}
+          onBoard={() => setShowBoard(true)}
+          onDesk={() => setShowComputer(true)}
+        />
+        <Suspense fallback={
+          <group position={[0, 0, 2.5]}>
+            <mesh position={[0, 0.5, 0]}>
+              <capsuleGeometry args={[0.15, 0.4, 8, 16]} />
+              <meshLambertMaterial color="#4488cc" />
+            </mesh>
+          </group>
+        }>
           <OfficePlayer onPositionChange={(p) => playerPos.current.copy(p)} />
-          <ProximityHints
-            playerPos={playerPos}
-            onBoard={() => setShowBoard(true)}
-            onDesk={() => setShowComputer(true)}
-          />
-          <FollowCamera target={playerPos.current} />
         </Suspense>
       </Canvas>
 
@@ -1017,8 +1033,8 @@ export default function DetectiveOfficeScene() {
         WASD MOVE · E INTERACT
       </div>
 
-      {/* World loading overlay */}
-      {loadingWorld && (
+      {/* World loading / error overlay */}
+      {(loadingWorld || worldError) && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 40,
           background: 'rgba(5,3,2,0.92)',
@@ -1026,12 +1042,36 @@ export default function DetectiveOfficeScene() {
           alignItems: 'center', justifyContent: 'center',
           fontFamily: '"Courier New", monospace',
         }}>
-          <div style={{ fontSize: 14, color: '#d4b483', letterSpacing: 5, marginBottom: 12 }}>
-            RECEIVING CASE FILES...
-          </div>
-          <div style={{ fontSize: 10, color: '#8B6914', letterSpacing: 3 }}>
-            Building city · Placing suspects · Hiding evidence
-          </div>
+          {loadingWorld && (
+            <>
+              <div style={{ fontSize: 14, color: '#d4b483', letterSpacing: 5, marginBottom: 12 }}>
+                RECEIVING CASE FILES...
+              </div>
+              <div style={{ fontSize: 10, color: '#8B6914', letterSpacing: 3 }}>
+                Building city · Placing suspects · Hiding evidence
+              </div>
+            </>
+          )}
+          {worldError && !loadingWorld && (
+            <>
+              <div style={{ fontSize: 14, color: '#cc4444', letterSpacing: 4, marginBottom: 12 }}>
+                CONNECTION FAILED
+              </div>
+              <div style={{ fontSize: 10, color: '#884444', letterSpacing: 2, marginBottom: 20, maxWidth: 400, textAlign: 'center' }}>
+                {worldError}
+              </div>
+              <button
+                onClick={loadWorld}
+                style={{
+                  background: '#3a0a00', border: '1px solid #cc4444',
+                  color: '#cc4444', padding: '8px 24px', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 11, letterSpacing: 3,
+                }}
+              >
+                RETRY
+              </button>
+            </>
+          )}
         </div>
       )}
 
