@@ -8,6 +8,7 @@ import FollowCamera from '../components/FollowCamera'
 import DialogBox from '../components/DialogBox'
 import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
+import Inventory from '../components/Inventory'
 import { useGameStore } from '../store/gameStore'
 
 class ModelErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -212,6 +213,9 @@ export default function CityScene() {
   const {
     currentCase, activeNPC,
     setActiveNPC, setCurrentInterior, setPhase, world,
+    collectedEvidence,
+    openInventory,
+    inventoryOpen,
   } = useGameStore()
   const [showNotebook, setShowNotebook] = useState(false)
   const playerPos = useRef(new THREE.Vector3(0, 0, 0))
@@ -348,16 +352,50 @@ export default function CityScene() {
       </div>
 
       <div style={{ position: 'fixed', top: 16, right: 16, display: 'flex', gap: 8 }}>
-        <button onClick={() => setShowNotebook(true)} style={{
-          background: '#0a0805', border: '1px solid #8B6914',
-          color: '#d4b483', padding: '6px 14px', cursor: 'pointer',
-          fontFamily: '"Courier New", monospace', fontSize: 11, letterSpacing: 1,
-        }}>NOTEBOOK</button>
-        <button onClick={() => setPhase('case_selection')} style={{
-          background: '#0a0a1a', border: '1px solid #2a2a3a',
-          color: '#555', padding: '6px 14px', cursor: 'pointer',
-          fontFamily: '"Courier New", monospace', fontSize: 11,
-        }}>← CASES</button>
+        <button
+          onClick={openInventory}
+          style={{
+            background: '#0a0a1a', border: `1px solid ${collectedEvidence.length > 0 ? '#d4b48366' : '#2a2a3a'}`,
+            color: collectedEvidence.length > 0 ? '#d4b483' : '#444',
+            padding: '6px 14px',
+            cursor: 'pointer', fontFamily: '"Courier New", monospace', fontSize: 11,
+            letterSpacing: 1, position: 'relative',
+          }}
+        >
+          ◆ EVIDENCE
+          {collectedEvidence.length > 0 && (
+            <span style={{
+              position: 'absolute', top: -5, right: -5,
+              background: '#d4b483', color: '#050510',
+              borderRadius: '50%', width: 16, height: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 9, fontWeight: 'bold',
+            }}>
+              {collectedEvidence.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setShowNotebook(true)}
+          style={{
+            background: '#0a0805', border: '1px solid #8B6914',
+            color: '#d4b483', padding: '6px 14px',
+            cursor: 'pointer', fontFamily: '"Courier New", monospace', fontSize: 11,
+            letterSpacing: 1,
+          }}
+        >
+          NOTEBOOK
+        </button>
+        <button
+          onClick={() => setPhase('case_selection')}
+          style={{
+            background: '#0a0a1a', border: '1px solid #2a2a3a',
+            color: '#555', padding: '6px 14px',
+            cursor: 'pointer', fontFamily: '"Courier New", monospace', fontSize: 11,
+          }}
+        >
+          ← CASES
+        </button>
       </div>
 
       <div style={{
@@ -383,6 +421,7 @@ export default function CityScene() {
         </>
       )}
       {showNotebook && <Notebook onClose={() => setShowNotebook(false)} />}
+      {inventoryOpen && <Inventory />}
     </div>
   )
 }
