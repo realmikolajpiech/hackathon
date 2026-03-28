@@ -1,20 +1,14 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 
-useGLTF.preload('/models/characters/character-male-a.glb')
-
-const SPEED = 6
+const SPEED = 3
 
 interface PlayerProps {
   onPositionChange?: (pos: THREE.Vector3) => void
 }
 
 export default function Player({ onPositionChange }: PlayerProps) {
-  const { scene } = useGLTF('/models/characters/character-male-a.glb')
-  const cloned = useMemo(() => scene.clone(true), [scene])
-
   const groupRef = useRef<THREE.Group>(null)
   const keys = useRef({ w: false, a: false, s: false, d: false })
   const facingAngle = useRef(0)
@@ -42,7 +36,6 @@ export default function Player({ onPositionChange }: PlayerProps) {
     const { w, a, s, d } = keys.current
     const dir = new THREE.Vector3()
 
-    // Isometric: camera at [10,10,10]. Forward = (-1,0,-1), Right = (1,0,-1)
     if (w) { dir.x -= 1; dir.z -= 1 }
     if (s) { dir.x += 1; dir.z += 1 }
     if (a) { dir.x -= 1; dir.z += 1 }
@@ -54,19 +47,36 @@ export default function Player({ onPositionChange }: PlayerProps) {
       facingAngle.current = Math.atan2(dir.x, dir.z)
     }
 
-    // Smooth rotation
     const cur = groupRef.current.rotation.y
     let diff = facingAngle.current - cur
     diff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI
-    groupRef.current.rotation.y += diff * Math.min(1, 12 * delta)
+    groupRef.current.rotation.y += diff * Math.min(1, 10 * delta)
 
     onPositionChange?.(groupRef.current.position)
   })
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
-      <primitive object={cloned} scale={1} />
-      <pointLight position={[0, 3, 0]} color="#ffffee" intensity={3} distance={8} />
+      {/* Ground marker */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[0.18, 0.28, 32]} />
+        <meshBasicMaterial color="#00ff88" side={THREE.DoubleSide} transparent opacity={0.8} />
+      </mesh>
+
+      {/* Body */}
+      <mesh position={[0, 0.32, 0]}>
+        <capsuleGeometry args={[0.1, 0.25, 8, 16]} />
+        <meshStandardMaterial color="#3366cc" />
+      </mesh>
+
+      {/* Head */}
+      <mesh position={[0, 0.62, 0]}>
+        <sphereGeometry args={[0.1, 16, 16]} />
+        <meshStandardMaterial color="#ffcc88" />
+      </mesh>
+
+      {/* Small spotlight above */}
+      <pointLight position={[0, 1.5, 0]} color="#ffffff" intensity={2} distance={5} />
     </group>
   )
 }

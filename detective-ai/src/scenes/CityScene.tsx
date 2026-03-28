@@ -1,7 +1,8 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useGLTF, Clone, Html } from '@react-three/drei'
+import { useGLTF, Clone, Html, OrbitControls } from '@react-three/drei'
 import { Suspense, useState, useRef, useMemo, useEffect, Component, type ReactNode } from 'react'
 import * as THREE from 'three'
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import Building, { NEON_COLORS } from '../components/Building'
 import Player from '../components/Player'
 import FollowCamera from '../components/FollowCamera'
@@ -38,11 +39,8 @@ function Tree({ position }: { position: [number, number, number] }) {
 }
 
 // ─── Road layout ────────────────────────────────────────────────────────────
-// Kenney road tiles: 1×1 unit. Grid with spacing S between intersections.
-// Larger spacing = bigger blocks between roads.
-const S = 3  // spacing between intersections
+const S = 3
 
-// Preload road models + filler buildings
 const ROAD_MODELS = ['/models/roads/road-crossroad.glb', '/models/roads/road-straight.glb']
 const FILLER_SKYSCRAPERS = [
   '/models/commercial/building-skyscraper-a.glb',
@@ -75,24 +73,20 @@ function RoadGrid() {
 
   const tiles = useMemo(() => {
     const out: { pos: [number, number, number]; rot: number; obj: 'cross' | 'straight' }[] = []
-    const ext = S * 3  // 3 blocks in each direction
+    const ext = S * 3
 
-    // Crossroad intersections
     for (let x = -ext; x <= ext; x += S)
       for (let z = -ext; z <= ext; z += S)
         out.push({ pos: [x, 0, z], rot: 0, obj: 'cross' })
 
-    // Straight roads between intersections
     for (let x = -ext; x <= ext; x += S) {
       for (let z = -ext; z < ext; z += S) {
-        // Vertical road segments (along Z axis) between z and z+S
         for (let fill = 1; fill < S; fill++)
           out.push({ pos: [x, 0, z + fill], rot: 0, obj: 'straight' })
       }
     }
     for (let z = -ext; z <= ext; z += S) {
       for (let x = -ext; x < ext; x += S) {
-        // Horizontal road segments (along X axis) between x and x+S
         for (let fill = 1; fill < S; fill++)
           out.push({ pos: [x + fill, 0, z], rot: Math.PI / 2, obj: 'straight' })
       }
@@ -121,7 +115,6 @@ function FillerBuildings() {
   const skyscrapers = FILLER_SKYSCRAPERS.map(u => useGLTF(u).scene)
   const smalls = FILLER_SMALL.map(u => useGLTF(u).scene)
 
-  // Place buildings in city block centers (between road intersections)
   const placements = useMemo(() => {
     const out: { pos: [number, number, number]; scene: THREE.Group; rot: number }[] = []
     const ext = S * 3
@@ -135,11 +128,9 @@ function FillerBuildings() {
         const isCenter = distFromCenter < S * 2
 
         if (isCenter) {
-          // Skyscrapers in center blocks
           const sc = skyscrapers[idx % skyscrapers.length]
           out.push({ pos: [cx, 0, cz], scene: sc, rot: (idx * Math.PI / 2) })
         } else {
-          // Small buildings on edges
           const sm = smalls[idx % smalls.length]
           out.push({ pos: [cx, 0, cz], scene: sm, rot: (idx * Math.PI / 2) })
         }
@@ -208,7 +199,7 @@ const TREE_POS: [number, number, number][] = [
   [S + 0.4, 0, S * 2 + 0.4], [-(S + 0.4), 0, -(S * 2 + 0.4)],
 ]
 
-// ─── Proximity checker (runs inside Canvas) ──────────────────────────────────
+// ─── Proximity checker ─────────────────────────────────────────────────────
 type BuildingEntry = { type: string; position: [number, number, number]; npc_id: string | null }
 
 function ProximityChecker({
@@ -253,6 +244,7 @@ export default function CityScene() {
   } = useGameStore()
   const [showNotebook, setShowNotebook] = useState(false)
   const playerPos = useRef(new THREE.Vector3(0, 0, 0))
+  const controlsRef = useRef<OrbitControlsImpl>(null)
   const [nearbyBuilding, setNearbyBuilding] = useState<BuildingEntry | null>(null)
   const nearbyBuildingRef = useRef<BuildingEntry | null>(null)
 
@@ -297,11 +289,21 @@ export default function CityScene() {
         camera={{ position: [10, 10, 10], fov: 40, near: 0.1, far: 500 }}
         shadows
       >
-        {/* Player + follow camera */}
-        <Suspense fallback={null}>
-          <Player onPositionChange={(pos) => playerPos.current.copy(pos)} />
-        </Suspense>
-        <FollowCamera target={playerPos.current} />
+        {/* Camera controls: scroll to zoom, drag to rotate */}
+        <OrbitControls
+          ref={controlsRef}
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.1}
+          minDistance={3}
+          maxDistance={30}
+          maxPolarAngle={Math.PI / 2.5}
+          minPolarAngle={Math.PI / 6}
+        />
+
+        {/* Player + follow camera + proximity */}
+        <Player onPositionChange={(pos) => playerPos.current.copy(pos)} />
+        <FollowCamera target={playerPos.current} controlsRef={controlsRef} />
         <ProximityChecker buildings={buildings} playerPos={playerPos} onNearbyChange={handleNearbyChange} />
 
         {/* Lighting */}
@@ -399,7 +401,7 @@ export default function CityScene() {
           Victim: <span style={{ color: '#d4b483' }}>{currentCase.case.victim.name}</span>
         </div>
         <div style={{ marginTop: 6, color: '#444', fontSize: 11 }}>
-          WASD to move · Press E to interact
+          WASD to move · Press E to interact · Scroll to zoom · Drag to rotate
         </div>
       </div>
 
