@@ -4,6 +4,7 @@ import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { SCALE } from '../config/modelScales'
+import { resolveCollisions, type Collider } from '../utils/collisions'
 
 const MODEL_URL = '/models/characters/character-male-a.glb'
 useGLTF.preload(MODEL_URL)
@@ -12,13 +13,14 @@ const MOVE_SPEED = 5
 const SPRINT_MULT = 1.8
 const TURN_SPEED = 12
 
+export type { Collider }
+
 interface PlayerProps {
   onPositionChange?: (pos: THREE.Vector3) => void
-  /** Clamp position within [-bounds, bounds] on X and Z */
   bounds?: number
   startPosition?: [number, number, number]
-  /** Attach a subtle overhead light to the player */
   playerLight?: boolean
+  colliders?: readonly Collider[]
 }
 
 const _fwd = new THREE.Vector3()
@@ -26,7 +28,6 @@ const _rgt = new THREE.Vector3()
 const _dir = new THREE.Vector3()
 const _up = new THREE.Vector3(0, 1, 0)
 
-/** Loads and renders just the character model — safe to suspend */
 function CharacterModel() {
   const { scene } = useGLTF(MODEL_URL)
   const clone = useMemo(() => {
@@ -47,9 +48,11 @@ export default function Player({
   bounds,
   startPosition,
   playerLight,
+  colliders,
 }: PlayerProps) {
   const { camera } = useThree()
   const groupRef = useRef<THREE.Group>(null!)
+  const modelRef = useRef<THREE.Group>(null!)
   const input = useRef({
     forward: false,
     backward: false,
@@ -58,12 +61,13 @@ export default function Player({
     sprint: false,
   })
   const facingAngle = useRef(0)
+  const walkPhase = useRef(0)
 
   useEffect(() => {
     if (groupRef.current && startPosition) {
       groupRef.current.position.set(...startPosition)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const apply = (key: string, pressed: boolean) => {
@@ -103,7 +107,9 @@ export default function Player({
     if (right)    _dir.add(_rgt)
     if (left)     _dir.sub(_rgt)
 
-    if (_dir.lengthSq() > 0.001) {
+    const isMoving = _dir.lengthSq() > 0.001
+
+    if (isMoving) {
       _dir.normalize()
       const speed = sprint ? MOVE_SPEED * SPRINT_MULT : MOVE_SPEED
       g.position.addScaledVector(_dir, speed * dt)
@@ -115,26 +121,51 @@ export default function Player({
       g.position.z = THREE.MathUtils.clamp(g.position.z, -bounds, bounds)
     }
 
+    if (colliders && colliders.length > 0) {
+      const [rx, rz] = resolveCollisions(g.position.x, g.position.z, colliders)
+      g.position.x = rx
+      g.position.z = rz
+    }
+
     let angleDiff = facingAngle.current - g.rotation.y
     angleDiff = THREE.MathUtils.euclideanModulo(angleDiff + Math.PI, Math.PI * 2) - Math.PI
     g.rotation.y += angleDiff * Math.min(1, TURN_SPEED * dt)
+
+    // Procedural animation
+    const m = modelRef.current
+    if (m) {
+      if (isMoving) {
+        const freq = sprint ? 16 : 12
+        walkPhase.current += dt * freq
+        const s = SCALE.character
+        m.position.y = Math.abs(Math.sin(walkPhase.current)) * 0.06 * s
+        m.rotation.x = Math.sin(walkPhase.current * 0.5) * 0.07
+        m.rotation.z = Math.sin(walkPhase.current) * 0.035
+      } else {
+        walkPhase.current += dt * 2
+        const s = SCALE.character
+        m.position.y = (Math.sin(walkPhase.current) * 0.5 + 0.5) * 0.012 * s
+        m.rotation.x = 0
+        m.rotation.z = Math.sin(walkPhase.current) * 0.008
+      }
+    }
 
     onPositionChange?.(g.position)
   })
 
   return (
     <group ref={groupRef}>
-      {/* 3D model — loads async, won't block the group from rendering */}
-      <Suspense fallback={
-        <mesh position={[0, 0.5 * SCALE.character, 0]}>
-          <capsuleGeometry args={[0.15 * SCALE.character, 0.4 * SCALE.character, 8, 16]} />
-          <meshLambertMaterial color="#4488cc" />
-        </mesh>
-      }>
-        <CharacterModel />
-      </Suspense>
+      <group ref={modelRef}>
+        <Suspense fallback={
+          <mesh position={[0, 0.5 * SCALE.character, 0]}>
+            <capsuleGeometry args={[0.15 * SCALE.character, 0.4 * SCALE.character, 8, 16]} />
+            <meshLambertMaterial color="#4488cc" />
+          </mesh>
+        }>
+          <CharacterModel />
+        </Suspense>
+      </group>
 
-      {/* Ground ring marker */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <ringGeometry args={[0.3 * SCALE.character, 0.5 * SCALE.character, 24]} />
         <meshBasicMaterial color="#00ff88" side={THREE.DoubleSide} transparent opacity={0.8} />

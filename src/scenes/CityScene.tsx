@@ -12,6 +12,7 @@ import Notebook from '../components/Notebook'
 import Inventory from '../components/Inventory'
 import { useGameStore } from '../store/gameStore'
 import { WORLD_SCALE, SCALE } from '../config/modelScales'
+import type { Collider } from '../utils/collisions'
 
 extend({ UnrealBloomPass, FilmPass })
 
@@ -65,6 +66,41 @@ const W = WORLD_SCALE
 const ROAD_SPACING = 3  // tiles between intersections
 const GRID_BLOCKS = 2
 const EXT = ROAD_SPACING * GRID_BLOCKS
+
+// Pre-compute valid block centers (between road lanes)
+const BLOCK_CENTERS: [number, number][] = []
+for (let bx = -EXT + 1; bx < EXT; bx += ROAD_SPACING) {
+  for (let bz = -EXT + 1; bz < EXT; bz += ROAD_SPACING) {
+    BLOCK_CENTERS.push([
+      (bx + (ROAD_SPACING - 1) / 2) * W,
+      (bz + (ROAD_SPACING - 1) / 2) * W,
+    ])
+  }
+}
+
+function snapToBlock(wx: number, wz: number): [number, number] {
+  let bestDist = Infinity
+  let best: [number, number] = BLOCK_CENTERS[0]
+  for (const bc of BLOCK_CENTERS) {
+    const dx = wx - bc[0]
+    const dz = wz - bc[1]
+    const dist = dx * dx + dz * dz
+    if (dist < bestDist) {
+      bestDist = dist
+      best = bc
+    }
+  }
+  return best
+}
+
+function isOnRoad(wx: number, wz: number): boolean {
+  const gx = Math.round(wx / W)
+  const gz = Math.round(wz / W)
+  if (Math.abs(wx - gx * W) > W * 0.45 || Math.abs(wz - gz * W) > W * 0.45) return false
+  const modX = ((gx % ROAD_SPACING) + ROAD_SPACING) % ROAD_SPACING
+  const modZ = ((gz % ROAD_SPACING) + ROAD_SPACING) % ROAD_SPACING
+  return modX === 0 || modZ === 0
+}
 
 const ROAD_MODELS = ['/models/roads/road-crossroad.glb', '/models/roads/road-straight.glb']
 const FILLER_SKYSCRAPERS = [
@@ -129,7 +165,7 @@ function RoadGrid() {
 }
 
 // ─── Filler buildings ───────────────────────────────────────────────────────
-function FillerBuildings() {
+function FillerBuildings({ excludePositions }: { excludePositions?: [number, number][] }) {
   const skyscrapers = FILLER_SKYSCRAPERS.map(u => useGLTF(u).scene)
   const smalls = FILLER_SMALL.map(u => useGLTF(u).scene)
 
@@ -145,6 +181,13 @@ function FillerBuildings() {
       for (let bz = -EXT + 1; bz < EXT; bz += ROAD_SPACING) {
         const cx = (bx + (ROAD_SPACING - 1) / 2) * W
         const cz = (bz + (ROAD_SPACING - 1) / 2) * W
+
+        // Skip blocks occupied by story buildings
+        if (excludePositions?.some(([ex, ez]) => {
+          const dx = cx - ex, dz = cz - ez
+          return dx * dx + dz * dz < W * W
+        })) { idx++; continue }
+
         const dist = Math.max(Math.abs(cx), Math.abs(cz))
         const pool = dist < ROAD_SPACING * W * 1.2 ? skyscrapers : smalls
         out.push({ pos: [cx, 0, cz], scene: pool[idx % pool.length], rot: (idx * Math.PI / 2) })
@@ -152,7 +195,7 @@ function FillerBuildings() {
       }
     }
     return out
-  }, [skyscrapers, smalls])
+  }, [skyscrapers, smalls, excludePositions])
 
   return (
     <group>
@@ -297,7 +340,60 @@ export default function CityScene() {
   }
 
   if (!currentCase) return null
-  const buildings = currentCase.map_layout.buildings
+  const rawBuildings = currentCase.map_layout.buildings
+
+  // Validate story building positions: snap to block centers if on a road
+  const buildings = useMemo(() =>
+    rawBuildings.map((b) => {
+      if (isOnRoad(b.position[0], b.position[2])) {
+        const [sx, sz] = snapToBlock(b.position[0], b.position[2])
+        return { ...b, position: [sx, b.position[1], sz] as [number, number, number] }
+      }
+      return b
+    }),
+  [rawBuildings])
+
+  // Positions of story buildings to exclude from filler generation
+  const storyBlockPositions = useMemo<[number, number][]>(() =>
+    buildings.map((b) => [b.position[0], b.position[2]]),
+  [buildings])
+
+  // Collision data for all city objects
+  const cityColliders = useMemo<Collider[]>(() => {
+    const out: Collider[] = []
+
+    // Filler buildings
+    for (let bx = -EXT + 1; bx < EXT; bx += ROAD_SPACING) {
+      for (let bz = -EXT + 1; bz < EXT; bz += ROAD_SPACING) {
+        const cx = (bx + (ROAD_SPACING - 1) / 2) * W
+        const cz = (bz + (ROAD_SPACING - 1) / 2) * W
+        const isExcluded = storyBlockPositions.some(([ex, ez]) => {
+          const dx = cx - ex, dz = cz - ez
+          return dx * dx + dz * dz < W * W
+        })
+        if (!isExcluded) out.push({ x: cx, z: cz, radius: SCALE.fillerBuilding * 0.45 })
+      }
+    }
+
+    // Story buildings
+    for (const b of buildings) {
+      out.push({ x: b.position[0], z: b.position[2], radius: SCALE.building * 0.45 })
+    }
+
+    // Lamps
+    for (let x = -EXT; x <= EXT; x += ROAD_SPACING)
+      for (let z = -EXT; z <= EXT; z += ROAD_SPACING)
+        if ((Math.abs(x) + Math.abs(z)) % (ROAD_SPACING * 2) === 0)
+          out.push({ x: x * W + 0.8, z: z * W + 0.8, radius: 0.3 })
+
+    // Cars
+    out.push({ x: -2, z: 7, radius: 0.7 })
+    out.push({ x: 7, z: 2, radius: 0.7 })
+    out.push({ x: 2, z: -7, radius: 0.7 })
+    out.push({ x: -7, z: -2, radius: 0.7 })
+
+    return out
+  }, [buildings, storyBlockPositions])
 
   function handleBuildingInteract(npcId: string | null, buildingType: string) {
     const type = buildingType.toLowerCase().trim()
@@ -357,7 +453,7 @@ export default function CityScene() {
         />
 
         <Suspense fallback={null}>
-          <Player onPositionChange={(pos) => playerPos.current.copy(pos)} />
+          <Player onPositionChange={(pos) => playerPos.current.copy(pos)} colliders={cityColliders} />
         </Suspense>
         <FollowCamera target={playerPos.current} controlsRef={controlsRef} />
         <ProximityChecker buildings={buildings} playerPos={playerPos} onNearbyChange={handleNearbyChange} />
@@ -420,7 +516,7 @@ export default function CityScene() {
 
         <ModelErrorBoundary>
           <Suspense fallback={null}>
-            <FillerBuildings />
+            <FillerBuildings excludePositions={storyBlockPositions} />
           </Suspense>
         </ModelErrorBoundary>
 

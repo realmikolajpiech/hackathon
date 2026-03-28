@@ -11,6 +11,7 @@ import Inventory from '../components/Inventory'
 import { useGameStore } from '../store/gameStore'
 import type { InteriorObject } from '../store/gameStore'
 import { SCALE } from '../config/modelScales'
+import type { Collider } from '../utils/collisions'
 
 // ─── Asset paths ──────────────────────────────────────────────────────────────
 
@@ -586,6 +587,33 @@ export default function InteriorScene3D() {
 
   const neonColor = NEON[interior.building_type] ?? '#ffffff'
 
+  // Colliders for interior objects
+  const interiorColliders = useMemo<Collider[]>(() => {
+    const out: Collider[] = []
+
+    // Decor items
+    const decorItems = BUILDING_DECOR[interior.building_type] ?? BUILDING_DECOR.office ?? []
+    for (const item of decorItems) {
+      out.push({ x: item.pos[0], z: item.pos[2], radius: 0.35 })
+    }
+
+    // Examinable objects
+    const objs = interior.objects.slice(0, 6)
+    objs.forEach((_, i) => {
+      if (i < EXAMINE_POSITIONS.length) {
+        const ep = EXAMINE_POSITIONS[i]
+        out.push({ x: ep[0], z: ep[2], radius: 0.4 })
+      }
+    })
+
+    // NPC
+    if (npc) {
+      out.push({ x: 0, z: -2.8, radius: 0.4 })
+    }
+
+    return out
+  }, [interior, npc])
+
   function handleExit() {
     setActiveNPC(null)
     setCurrentInterior(null)
@@ -665,6 +693,7 @@ export default function InteriorScene3D() {
             bounds={3.1}
             startPosition={[0, 0, 2.2]}
             playerLight
+            colliders={interiorColliders}
           />
           <FollowCamera target={playerPos.current} />
           <ObjectProximityChecker
