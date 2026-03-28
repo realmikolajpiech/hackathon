@@ -238,7 +238,6 @@ Rules:
 | **Gemini Live API** | Real-time voice NPC dialogue | MUST HAVE |
 | **Gemini 2.0 Flash** | Case generation + text NPC | MUST HAVE |
 | TypeGPU | Neon edge glow shader on buildings | Nice to have |
-| MediaPipe | Point at suspect to accuse | Bonus if time |
 | Fishjam | — | Skip |
 | Smelter | — | Skip |
 | Antigravity | — | Skip |

@@ -84,22 +84,20 @@ Rules:
 - NO markdown, NO explanation, ONLY the JSON object`
 }
 
-export async function generateCase(
-  apiKey: string,
-  summary: CaseSummary,
+export async function generateCase(summary: CaseSummary,
   cityName: string
 ): Promise<CaseData> {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  const response = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'models/gemini-3.1-flash-lite-preview',
+      body: {
         contents: [{ parts: [{ text: buildPrompt(summary, cityName) }] }],
         generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
-      }),
-    }
-  )
+      },
+    }),
+  })
   if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
   const data = await response.json()
   const raw: string = data.candidates[0].content.parts[0].text

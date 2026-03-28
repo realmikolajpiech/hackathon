@@ -7,11 +7,7 @@ import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
 import { useGameStore } from '../store/gameStore'
 
-interface CitySceneProps {
-  apiKey: string
-}
-
-export default function CityScene({ apiKey }: CitySceneProps) {
+export default function CityScene() {
   const {
     currentCase,
     activeNPC,
@@ -157,8 +153,8 @@ export default function CityScene({ apiKey }: CitySceneProps) {
       {/* Fallback dialogue (when no interior) */}
       {activeNPC && (
         <>
-          <DialogBox apiKey={apiKey} onClose={handleCloseDialog} />
-          <VoiceUI apiKey={apiKey} onTranscript={handleTranscript} />
+          <DialogBox onClose={handleCloseDialog} />
+          <VoiceUI onTranscript={handleTranscript} />
         </>
       )}
 

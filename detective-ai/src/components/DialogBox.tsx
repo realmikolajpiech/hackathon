@@ -3,11 +3,10 @@ import { useGameStore } from '../store/gameStore'
 import { buildNPCSystemPrompt, sendNPCMessage } from '../ai/npcPrompt'
 
 interface DialogBoxProps {
-  apiKey: string
   onClose: () => void
 }
 
-export default function DialogBox({ apiKey, onClose }: DialogBoxProps) {
+export default function DialogBox({ onClose }: DialogBoxProps) {
   const [input, setInput] = useState('')
   const [isSending, setIsSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -31,7 +30,7 @@ export default function DialogBox({ apiKey, onClose }: DialogBoxProps) {
 
     try {
       const systemPrompt = buildNPCSystemPrompt(npc!, currentCase!)
-      const reply = await sendNPCMessage(apiKey, systemPrompt, messages, userMsg)
+      const reply = await sendNPCMessage(systemPrompt, messages, userMsg)
       addMessage(npc!.id, { role: 'assistant', content: reply })
     } catch (e) {
       addMessage(npc!.id, { role: 'assistant', content: '...*silence*...' })

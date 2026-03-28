@@ -4,11 +4,10 @@ import { buildNPCSystemPrompt } from '../ai/npcPrompt'
 import { useGameStore } from '../store/gameStore'
 
 interface VoiceUIProps {
-  apiKey: string
   onTranscript: (text: string) => void
 }
 
-export default function VoiceUI({ apiKey, onTranscript }: VoiceUIProps) {
+export default function VoiceUI({ onTranscript }: VoiceUIProps) {
   const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
   const [isTalking, setIsTalking] = useState(false)
   const sessionRef = useRef<GeminiLiveSession | null>(null)
@@ -25,7 +24,6 @@ export default function VoiceUI({ apiKey, onTranscript }: VoiceUIProps) {
     const systemPrompt = buildNPCSystemPrompt(activeNPC, currentCase)
 
     const session = new GeminiLiveSession({
-      apiKey,
       systemPrompt,
       onAudioData: () => {},
       onTranscript: (text) => {
@@ -71,7 +69,7 @@ export default function VoiceUI({ apiKey, onTranscript }: VoiceUIProps) {
     } catch {
       setStatus('error')
     }
-  }, [activeNPC, currentCase, apiKey, onTranscript, setVoiceActive])
+  }, [activeNPC, currentCase, onTranscript, setVoiceActive])
 
   const stopSession = useCallback(() => {
     sessionRef.current?.disconnect()

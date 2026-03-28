@@ -29,7 +29,6 @@ RULES:
 }
 
 export async function sendNPCMessage(
-  apiKey: string,
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   userMessage: string
@@ -42,22 +41,20 @@ export async function sendNPCMessage(
     { role: 'user', parts: [{ text: userMessage }] },
   ]
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  const response = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'models/gemini-3.1-flash-lite-preview',
+      body: {
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents,
         generationConfig: { temperature: 0.8, maxOutputTokens: 200 },
-      }),
-    }
-  )
+      },
+    }),
+  })
 
-  if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.status}`)
-  }
+  if (!response.ok) throw new Error(`API error: ${response.status}`)
 
   const data = await response.json()
   return data.candidates[0].content.parts[0].text

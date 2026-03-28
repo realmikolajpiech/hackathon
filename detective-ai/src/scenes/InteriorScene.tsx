@@ -4,11 +4,7 @@ import DialogBox from '../components/DialogBox'
 import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
 
-interface InteriorSceneProps {
-  apiKey: string
-}
-
-export default function InteriorScene({ apiKey }: InteriorSceneProps) {
+export default function InteriorScene() {
   const {
     currentInterior,
     currentCase,
@@ -303,8 +299,8 @@ export default function InteriorScene({ apiKey }: InteriorSceneProps) {
       {/* Dialogue overlay */}
       {activeNPC && (
         <>
-          <DialogBox apiKey={apiKey} onClose={handleCloseDialog} />
-          <VoiceUI apiKey={apiKey} onTranscript={handleTranscript} />
+          <DialogBox onClose={handleCloseDialog} />
+          <VoiceUI onTranscript={handleTranscript} />
         </>
       )}
 

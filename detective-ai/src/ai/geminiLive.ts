@@ -2,7 +2,6 @@
 // Uses the Multimodal Live API via WebSocket
 
 export interface LiveSessionConfig {
-  apiKey: string
   systemPrompt: string
   onAudioData: (audioData: ArrayBuffer) => void
   onTranscript: (text: string) => void
@@ -22,7 +21,8 @@ export class GeminiLiveSession {
   }
 
   connect() {
-    const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${this.config.apiKey}`
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const url = `${proto}//${window.location.host}/api/live`
     this.config.onStatusChange('connecting')
     this.ws = new WebSocket(url)
 

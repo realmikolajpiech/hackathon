@@ -2,11 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { generateWorld } from '../ai/generateWorld'
 
-interface OfficeSceneProps {
-  apiKey: string
-}
-
-export default function OfficeScene({ apiKey }: OfficeSceneProps) {
+export default function OfficeScene() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { setWorld, setPhase } = useGameStore()
@@ -15,7 +11,7 @@ export default function OfficeScene({ apiKey }: OfficeSceneProps) {
     setIsGenerating(true)
     setError(null)
     try {
-      const world = await generateWorld(apiKey)
+      const world = await generateWorld()
       setWorld(world)
       setPhase('case_selection')
     } catch (e) {

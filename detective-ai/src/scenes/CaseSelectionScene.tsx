@@ -20,11 +20,7 @@ const TYPE_COLORS: Record<string, string> = {
   extortion: '#ff6600',
 }
 
-interface CaseSelectionSceneProps {
-  apiKey: string
-}
-
-export default function CaseSelectionScene({ apiKey }: CaseSelectionSceneProps) {
+export default function CaseSelectionScene() {
   const { world, setCurrentCase, setPhase, reset } = useGameStore()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +34,7 @@ export default function CaseSelectionScene({ apiKey }: CaseSelectionSceneProps) 
     setLoadingId(caseId)
     setError(null)
     try {
-      const fullCase = await generateCase(apiKey, summary, world!.city.name)
+      const fullCase = await generateCase(summary, world!.city.name)
       setCurrentCase(fullCase)
       setPhase('city')
     } catch (e) {
