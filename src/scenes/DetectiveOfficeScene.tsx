@@ -282,7 +282,7 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
       {nearBoard && (
         <Html position={[-1.5, 2.2, -3.8]} center distanceFactor={12}>
           <div style={{
-            color: '#d4b483', fontSize: 11, letterSpacing: 2,
+            color: '#d4b483', fontSize: 13, letterSpacing: 2,
             background: 'rgba(0,0,0,0.85)', padding: '4px 12px',
             fontFamily: '"Courier New", monospace',
             border: '1px solid #d4b48344', whiteSpace: 'nowrap',
@@ -294,7 +294,7 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
       {nearDesk && (
         <Html position={[3.0, 2.2, -2.0]} center distanceFactor={12}>
           <div style={{
-            color: '#88cc88', fontSize: 11, letterSpacing: 2,
+            color: '#88cc88', fontSize: 13, letterSpacing: 2,
             background: 'rgba(0,0,0,0.85)', padding: '4px 12px',
             fontFamily: '"Courier New", monospace',
             border: '1px solid #88cc8844', whiteSpace: 'nowrap',
