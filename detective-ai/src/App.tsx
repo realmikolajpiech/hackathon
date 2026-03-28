@@ -1,7 +1,7 @@
 import { useGameStore } from './store/gameStore'
 import OfficeScene from './scenes/OfficeScene'
 import CityScene from './scenes/CityScene'
-import InteriorScene from './scenes/InteriorScene'
+import InteriorScene3D from './scenes/InteriorScene3D'
 import CaseSelectionScene from './scenes/CaseSelectionScene'
 import ResolutionScene from './scenes/ResolutionScene'
 
@@ -13,7 +13,7 @@ export default function App() {
       {phase === 'menu' && <OfficeScene />}
       {phase === 'case_selection' && <CaseSelectionScene />}
       {phase === 'city' && <CityScene />}
-      {phase === 'interior' && <InteriorScene />}
+      {phase === 'interior' && <InteriorScene3D />}
       {phase === 'resolution' && <ResolutionScene />}
     </>
   )
