@@ -1,73 +1,57 @@
-# React + TypeScript + Vite
+# Detective AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A noir detective game where every case is unique. Explore a procedurally generated low-poly city, pick a case from your office, then interrogate AI-powered suspects using real voice via Gemini Live API.
 
-Currently, two official plugins are available:
+## Prerequisites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 18+
+- A [Gemini API key](https://aistudio.google.com/app/apikey)
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Clone the repo and install dependencies:
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Create a `.env` file in the project root:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+GEMINI_API_KEY=your_api_key_here
 ```
+
+## Running locally
+
+```bash
+npm run dev
+```
+
+This starts both the Vite dev server (frontend) and the local proxy server on port 3001 (handles Gemini API calls and Gemini Live WebSocket).
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+## How to play
+
+1. Start the game — Gemini generates a unique murder case with suspects and clues
+2. Walk around the city and enter buildings to find and talk to suspects
+3. Use your **voice** to interrogate them in real time (Gemini Live API)
+4. Check your detective notebook for clues
+5. Accuse the right suspect to win
+
+## Deployment (Vercel)
+
+```bash
+vercel deploy
+```
+
+Set `GEMINI_API_KEY` as an environment variable in your Vercel project settings. The `api/gemini.ts` serverless function handles API proxying in production.
+
+## Tech stack
+
+- React + Vite + TypeScript
+- React Three Fiber / Three.js — 3D isometric city
+- TypeGPU — GPU-powered visual effects
+- Zustand — game state
+- Gemini 2.0 Flash — case generation and NPC dialogue
+- Gemini Live API — real-time voice conversations with suspects
