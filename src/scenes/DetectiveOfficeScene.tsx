@@ -66,6 +66,38 @@ function OfficeRoom() {
         <meshStandardMaterial color={WALL} roughness={0.95} />
       </mesh>
 
+      {/* Door frame – left side wall fill (floor to header) */}
+      <mesh position={[-1.045, 1.275, 4.55]} castShadow receiveShadow>
+        <boxGeometry args={[0.71, 2.55, 0.3]} />
+        <meshStandardMaterial color={WALL} roughness={0.95} />
+      </mesh>
+      {/* Door frame – right side wall fill (floor to header) */}
+      <mesh position={[1.045, 1.275, 4.55]} castShadow receiveShadow>
+        <boxGeometry args={[0.71, 2.55, 0.3]} />
+        <meshStandardMaterial color={WALL} roughness={0.95} />
+      </mesh>
+
+      {/* Door panel */}
+      <mesh position={[0, 1.2, 4.52]} castShadow receiveShadow>
+        <boxGeometry args={[1.38, 2.38, 0.08]} />
+        <meshStandardMaterial color="#5c3a1e" roughness={0.8} />
+      </mesh>
+      {/* Door panels inset (upper) */}
+      <mesh position={[0, 1.85, 4.48]}>
+        <boxGeometry args={[1.1, 0.9, 0.04]} />
+        <meshStandardMaterial color="#4a2e14" roughness={0.85} />
+      </mesh>
+      {/* Door panels inset (lower) */}
+      <mesh position={[0, 0.6, 4.48]}>
+        <boxGeometry args={[1.1, 1.0, 0.04]} />
+        <meshStandardMaterial color="#4a2e14" roughness={0.85} />
+      </mesh>
+      {/* Door handle */}
+      <mesh position={[0.55, 1.2, 4.48]}>
+        <sphereGeometry args={[0.06, 8, 8]} />
+        <meshStandardMaterial color="#b8860b" roughness={0.3} metalness={0.8} />
+      </mesh>
+
       {/* Skirting boards */}
       {[
         { pos: [0, 0.1, -4.4] as [number,number,number], args: [9.7, 0.2, 0.06] as [number,number,number] },

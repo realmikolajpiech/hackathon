@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useGameStore } from '../store/gameStore'
 import DialogBox from '../components/DialogBox'
 import VoiceUI from '../components/VoiceUI'
@@ -51,6 +51,16 @@ export default function InteriorScene() {
   function handleCloseDialog() {
     setActiveNPC(null)
   }
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key.toLowerCase() === 'e' && npc && !activeNPC) {
+        handleTalkToNPC()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [npc, activeNPC])
 
   function handleTranscript(text: string) {
     const { activeNPC: npcNow, addMessage } = useGameStore.getState()
@@ -194,17 +204,15 @@ export default function InteriorScene() {
               <div style={{ fontSize: 12, color: '#666', marginBottom: 14 }}>
                 {npc.occupation}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={handleTalkToNPC}
-                  style={{
-                    background: '#8B0000', border: '1px solid #ff0055',
-                    color: '#fff', padding: '7px 18px', cursor: 'pointer',
-                    fontFamily: 'inherit', fontSize: 12, letterSpacing: 1,
-                  }}
-                >
-                  INTERROGATE {npc.name.split(' ')[0].toUpperCase()}
-                </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{
+                  border: '1px solid #ff005566', background: 'rgba(255,0,85,0.08)',
+                  color: '#ccc', padding: '7px 18px',
+                  fontFamily: 'inherit', fontSize: 12, letterSpacing: 1,
+                }}>
+                  <span style={{ color: '#ff0055', fontWeight: 'bold' }}>E</span>
+                  {' '}— INTERROGATE {npc.name.split(' ')[0].toUpperCase()}
+                </div>
                 <button
                   onClick={() => accuse(npc.id)}
                   style={{
