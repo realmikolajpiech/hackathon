@@ -40,7 +40,7 @@ export default function OfficeScene({ apiKey }: OfficeSceneProps) {
     }}>
       {/* Office background elements */}
       <div style={{
-        position: 'absolute', inset: 0, opacity: 0.05,
+        position: 'absolute', inset: 0, opacity: 0.05, pointerEvents: 'none',
         backgroundImage: 'repeating-linear-gradient(0deg, #d4b483 0px, #d4b483 1px, transparent 1px, transparent 40px), repeating-linear-gradient(90deg, #d4b483 0px, #d4b483 1px, transparent 1px, transparent 40px)',
       }} />
 
