@@ -1,7 +1,10 @@
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, useGLTF, Clone, Html } from '@react-three/drei'
-import { Suspense, useState, useMemo, Component, type ReactNode } from 'react'
+import { useGLTF, Clone, Html } from '@react-three/drei'
+import { Suspense, useState, useRef, useMemo, Component, type ReactNode } from 'react'
+import * as THREE from 'three'
 import Building, { NEON_COLORS } from '../components/Building'
+import Player from '../components/Player'
+import FollowCamera from '../components/FollowCamera'
 import DialogBox from '../components/DialogBox'
 import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
@@ -16,40 +19,84 @@ class ModelErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
 // ─── Procedural tree ────────────────────────────────────────────────────────
 function Tree({ position }: { position: [number, number, number] }) {
   return (
-    <group position={position}>
+    <group position={position} scale={0.4}>
       <mesh position={[0, 0.4, 0]}>
-        <cylinderGeometry args={[0.08, 0.12, 0.8, 6]} />
+        <cylinderGeometry args={[0.06, 0.1, 0.8, 6]} />
         <meshStandardMaterial color="#5c3a1e" />
       </mesh>
-      <mesh position={[0, 1.3, 0]}>
-        <coneGeometry args={[0.6, 1.2, 6]} />
+      <mesh position={[0, 1.2, 0]}>
+        <coneGeometry args={[0.5, 1.0, 6]} />
         <meshStandardMaterial color="#2a5a2a" />
       </mesh>
-      <mesh position={[0, 2.1, 0]}>
-        <coneGeometry args={[0.45, 0.9, 6]} />
-        <meshStandardMaterial color="#3a6b3a" />
+      <mesh position={[0, 1.8, 0]}>
+        <coneGeometry args={[0.35, 0.7, 6]} />
+        <meshStandardMaterial color="#3a7a3a" />
       </mesh>
     </group>
   )
 }
 
-// ─── Road tile grid ─────────────────────────────────────────────────────────
+// ─── Road layout ────────────────────────────────────────────────────────────
+// Kenney road tiles: 1×1 unit. Grid with spacing S between intersections.
+// Larger spacing = bigger blocks between roads.
+const S = 3  // spacing between intersections
+
+// Preload road models + filler buildings
+const ROAD_MODELS = ['/models/roads/road-crossroad.glb', '/models/roads/road-straight.glb']
+const FILLER_SKYSCRAPERS = [
+  '/models/commercial/building-skyscraper-a.glb',
+  '/models/commercial/building-skyscraper-b.glb',
+  '/models/commercial/building-skyscraper-c.glb',
+  '/models/commercial/building-skyscraper-d.glb',
+  '/models/commercial/building-skyscraper-e.glb',
+]
+const FILLER_SMALL = [
+  '/models/commercial/low-detail-building-a.glb',
+  '/models/commercial/low-detail-building-b.glb',
+  '/models/commercial/low-detail-building-c.glb',
+  '/models/commercial/low-detail-building-d.glb',
+  '/models/commercial/low-detail-building-e.glb',
+  '/models/commercial/low-detail-building-f.glb',
+  '/models/commercial/low-detail-building-g.glb',
+  '/models/commercial/low-detail-building-h.glb',
+  '/models/industrial/building-a.glb',
+  '/models/industrial/building-b.glb',
+  '/models/industrial/building-c.glb',
+  '/models/industrial/building-f.glb',
+  '/models/industrial/building-g.glb',
+];
+
+[...ROAD_MODELS, ...FILLER_SKYSCRAPERS, ...FILLER_SMALL].forEach(u => useGLTF.preload(u))
+
 function RoadGrid() {
   const { scene: cross }    = useGLTF('/models/roads/road-crossroad.glb')
   const { scene: straight } = useGLTF('/models/roads/road-straight.glb')
-  const S = 4
 
   const tiles = useMemo(() => {
-    const out: { pos: [number, number, number]; type: 'cross' | 'h' | 'v' }[] = []
-    for (let x = -8; x <= 8; x += S * 2)
-      for (let z = -8; z <= 8; z += S * 2)
-        out.push({ pos: [x, 0, z], type: 'cross' })
-    for (let x = -8 + S; x < 8; x += S * 2)
-      for (let z = -8; z <= 8; z += S * 2)
-        out.push({ pos: [x, 0, z], type: 'h' })
-    for (let x = -8; x <= 8; x += S * 2)
-      for (let z = -8 + S; z < 8; z += S * 2)
-        out.push({ pos: [x, 0, z], type: 'v' })
+    const out: { pos: [number, number, number]; rot: number; obj: 'cross' | 'straight' }[] = []
+    const ext = S * 3  // 3 blocks in each direction
+
+    // Crossroad intersections
+    for (let x = -ext; x <= ext; x += S)
+      for (let z = -ext; z <= ext; z += S)
+        out.push({ pos: [x, 0, z], rot: 0, obj: 'cross' })
+
+    // Straight roads between intersections
+    for (let x = -ext; x <= ext; x += S) {
+      for (let z = -ext; z < ext; z += S) {
+        // Vertical road segments (along Z axis) between z and z+S
+        for (let fill = 1; fill < S; fill++)
+          out.push({ pos: [x, 0, z + fill], rot: 0, obj: 'straight' })
+      }
+    }
+    for (let z = -ext; z <= ext; z += S) {
+      for (let x = -ext; x < ext; x += S) {
+        // Horizontal road segments (along X axis) between x and x+S
+        for (let fill = 1; fill < S; fill++)
+          out.push({ pos: [x + fill, 0, z], rot: Math.PI / 2, obj: 'straight' })
+      }
+    }
+
     return out
   }, [])
 
@@ -58,53 +105,106 @@ function RoadGrid() {
       {tiles.map((t, i) => (
         <Clone
           key={i}
-          object={t.type === 'cross' ? cross : straight}
+          object={t.obj === 'cross' ? cross : straight}
           position={t.pos}
-          scale={2}
-          rotation={t.type === 'h' ? [0, Math.PI / 2, 0] : [0, 0, 0]}
+          scale={1}
+          rotation={[0, t.rot, 0]}
         />
       ))}
     </group>
   )
 }
 
-// ─── Street lamps (GLB) ────────────────────────────────────────────────────
-const LAMP_POS: [number, number, number][] = [
-  [-6, 0, -6], [6, 0, -6], [-6, 0, 6], [6, 0, 6],
-]
+// ─── Filler buildings (decoration, not clickable) ───────────────────────────
+function FillerBuildings() {
+  const skyscrapers = FILLER_SKYSCRAPERS.map(u => useGLTF(u).scene)
+  const smalls = FILLER_SMALL.map(u => useGLTF(u).scene)
 
-function GLBLamps() {
-  const { scene: lamp } = useGLTF('/models/roads/streetlamp.glb')
+  // Place buildings in city block centers (between road intersections)
+  const placements = useMemo(() => {
+    const out: { pos: [number, number, number]; scene: THREE.Group; rot: number }[] = []
+    const ext = S * 3
+    let idx = 0
+
+    for (let bx = -ext + 1; bx < ext; bx += S) {
+      for (let bz = -ext + 1; bz < ext; bz += S) {
+        const cx = bx + (S - 1) / 2
+        const cz = bz + (S - 1) / 2
+        const distFromCenter = Math.max(Math.abs(cx), Math.abs(cz))
+        const isCenter = distFromCenter < S * 2
+
+        if (isCenter) {
+          // Skyscrapers in center blocks
+          const sc = skyscrapers[idx % skyscrapers.length]
+          out.push({ pos: [cx, 0, cz], scene: sc, rot: (idx * Math.PI / 2) })
+        } else {
+          // Small buildings on edges
+          const sm = smalls[idx % smalls.length]
+          out.push({ pos: [cx, 0, cz], scene: sm, rot: (idx * Math.PI / 2) })
+        }
+        idx++
+      }
+    }
+    return out
+  }, [skyscrapers, smalls])
+
   return (
     <group>
-      {LAMP_POS.map((pos, i) => (
+      {placements.map((p, i) => (
+        <Clone key={i} object={p.scene} position={p.pos} rotation={[0, p.rot, 0]} scale={1} />
+      ))}
+    </group>
+  )
+}
+
+// ─── Street lamps ───────────────────────────────────────────────────────────
+function GLBLamps() {
+  const { scene: lamp } = useGLTF('/models/roads/streetlamp.glb')
+  const positions = useMemo(() => {
+    const out: [number, number, number][] = []
+    const ext = S * 3
+    for (let x = -ext; x <= ext; x += S)
+      for (let z = -ext; z <= ext; z += S)
+        if ((x + z) % (S * 2) === 0)
+          out.push([x + 0.4, 0, z + 0.4])
+    return out
+  }, [])
+
+  return (
+    <group>
+      {positions.map((pos, i) => (
         <group key={i} position={pos}>
-          <Clone object={lamp} scale={2} />
-          <pointLight position={[0, 7, 0]} color="#ffc060" intensity={8} distance={20} />
+          <Clone object={lamp} scale={1} />
+          <pointLight position={[0, 3, 0]} color="#ffc060" intensity={3} distance={8} />
         </group>
       ))}
     </group>
   )
 }
 
-// ─── Parked cars (GLB) ──────────────────────────────────────────────────────
+// ─── Parked cars ────────────────────────────────────────────────────────────
 function ParkedCars() {
   const { scene: police } = useGLTF('/models/cars/police.glb')
   const { scene: sedan }  = useGLTF('/models/cars/sedan-sports.glb')
+  const { scene: taxi }   = useGLTF('/models/cars/taxi.glb')
+  const CS = 0.5
   return (
     <group>
-      <Clone object={sedan}  position={[-3, 0, 9]}  scale={2} />
-      <Clone object={police} position={[9, 0, 3]}   scale={2} rotation={[0, Math.PI / 2, 0]} />
-      <Clone object={sedan}  position={[3, 0, -9]}  scale={2} />
+      <Clone object={sedan}  position={[-1, 0, S + 0.5]}  scale={CS} />
+      <Clone object={taxi}   position={[S + 0.5, 0, 1]}   scale={CS} rotation={[0, Math.PI / 2, 0]} />
+      <Clone object={police} position={[1, 0, -(S + 0.5)]} scale={CS} />
+      <Clone object={sedan}  position={[-(S + 0.5), 0, -1]} scale={CS} rotation={[0, Math.PI / 2, 0]} />
+      <Clone object={taxi}   position={[S * 2 + 0.5, 0, -2]} scale={CS} rotation={[0, Math.PI / 2, 0]} />
     </group>
   )
 }
 
 // ─── Trees ──────────────────────────────────────────────────────────────────
 const TREE_POS: [number, number, number][] = [
-  [-5, 0, -7], [5, 0, -7], [-7, 0, -3], [7, 0, -3],
-  [-7, 0, 4],  [7, 0, 4],  [-5, 0, 7],  [5, 0, 7],
-  [-3, 0, -3], [3, 0, -3], [-3, 0, 3],  [3, 0, 3],
+  [-0.4, 0, S + 0.4], [0.4, 0, -(S + 0.4)],
+  [S + 0.4, 0, 0.4], [-(S + 0.4), 0, -0.4],
+  [S * 2 + 0.4, 0, S + 0.4], [-(S * 2 + 0.4), 0, -(S + 0.4)],
+  [S + 0.4, 0, S * 2 + 0.4], [-(S + 0.4), 0, -(S * 2 + 0.4)],
 ]
 
 // ─── Main scene ─────────────────────────────────────────────────────────────
@@ -114,6 +214,7 @@ export default function CityScene() {
     setActiveNPC, setCurrentInterior, setPhase, world,
   } = useGameStore()
   const [showNotebook, setShowNotebook] = useState(false)
+  const playerPos = useRef(new THREE.Vector3(0, 0, 0))
 
   if (!currentCase) return null
   const buildings = currentCase.map_layout.buildings
@@ -127,9 +228,7 @@ export default function CityScene() {
     }
   }
 
-  function handleCloseDialog() {
-    setActiveNPC(null)
-  }
+  function handleCloseDialog() { setActiveNPC(null) }
 
   function handleTranscript(text: string) {
     const { activeNPC: npc, addMessage } = useGameStore.getState()
@@ -139,93 +238,89 @@ export default function CityScene() {
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#0a0a1a', position: 'relative' }}>
       <Canvas
-        camera={{ position: [18, 18, 18], fov: 45, near: 0.1, far: 500 }}
+        camera={{ position: [10, 10, 10], fov: 40, near: 0.1, far: 500 }}
         shadows
       >
-        <OrbitControls
-          target={[0, 2, 0]}
-          maxPolarAngle={Math.PI / 2.5}
-          minDistance={10}
-          maxDistance={60}
-        />
+        {/* Player + follow camera */}
+        <Suspense fallback={null}>
+          <Player onPositionChange={(pos) => playerPos.current.copy(pos)} />
+        </Suspense>
+        <FollowCamera target={playerPos.current} />
 
-        {/* Strong clear lighting */}
+        {/* Lighting */}
         <ambientLight intensity={1.5} />
-        <directionalLight position={[15, 30, 15]} intensity={2} castShadow />
-        <directionalLight position={[-10, 15, -10]} intensity={0.8} color="#ff6688" />
-        <hemisphereLight args={['#aaccff', '#224422', 1]} />
+        <directionalLight position={[10, 20, 10]} intensity={2} castShadow />
+        <directionalLight position={[-8, 12, -8]} intensity={0.5} color="#ff6688" />
+        <hemisphereLight args={['#aaccff', '#224422', 0.8]} />
 
         {/* Ground */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-          <planeGeometry args={[80, 80]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+          <planeGeometry args={[60, 60]} />
           <meshStandardMaterial color="#1a2e1a" />
         </mesh>
 
-        {/* Trees (procedural, always render) */}
+        {/* Trees */}
         {TREE_POS.map((pos, i) => <Tree key={`t${i}`} position={pos} />)}
 
-        {/* Fallback building boxes (always render) */}
-        {buildings.map((b, i) => {
-          const neonColor = NEON_COLORS[b.type] ?? '#ffffff'
-          return (
-            <group key={`fb${i}`}>
-              <Building
-                type={b.type}
-                position={b.position}
-                npcId={b.npc_id}
-                onClick={() => handleBuildingClick(b.npc_id, b.type)}
-                useGLB={false}
-              />
-              <group position={[b.position[0], 10, b.position[2]]}>
-                <Html center style={{ pointerEvents: 'none' }}>
-                  <div style={{
-                    background: 'rgba(0,0,0,0.8)',
-                    border: `1px solid ${neonColor}`,
-                    color: neonColor,
-                    padding: '2px 8px',
-                    fontFamily: '"Courier New", monospace',
-                    fontSize: 11, letterSpacing: 1, whiteSpace: 'nowrap',
-                    textShadow: `0 0 6px ${neonColor}`,
-                  }}>
-                    {b.type.toUpperCase()}
-                  </div>
-                </Html>
-              </group>
-            </group>
-          )
-        })}
-
-        {/* GLB assets — load async */}
+        {/* Roads */}
         <ModelErrorBoundary>
           <Suspense fallback={null}>
             <RoadGrid />
           </Suspense>
         </ModelErrorBoundary>
 
+        {/* Street lamps */}
         <ModelErrorBoundary>
           <Suspense fallback={null}>
             <GLBLamps />
           </Suspense>
         </ModelErrorBoundary>
 
+        {/* Parked cars */}
         <ModelErrorBoundary>
           <Suspense fallback={null}>
             <ParkedCars />
           </Suspense>
         </ModelErrorBoundary>
 
+        {/* Filler decoration buildings */}
         <ModelErrorBoundary>
           <Suspense fallback={null}>
-            {buildings.map((b, i) => (
-              <Building
-                key={`glb${i}`}
-                type={b.type}
-                position={b.position}
-                npcId={b.npc_id}
-                onClick={() => handleBuildingClick(b.npc_id, b.type)}
-                useGLB={true}
-              />
-            ))}
+            <FillerBuildings />
+          </Suspense>
+        </ModelErrorBoundary>
+
+        {/* AI-generated case buildings (clickable) */}
+        <ModelErrorBoundary>
+          <Suspense fallback={null}>
+            {buildings.map((b, i) => {
+              const neonColor = NEON_COLORS[b.type] ?? '#ffffff'
+              return (
+                <group key={i}>
+                  <Building
+                    type={b.type}
+                    position={b.position}
+                    npcId={b.npc_id}
+                    onClick={() => handleBuildingClick(b.npc_id, b.type)}
+                  />
+                  <group position={[b.position[0], 6, b.position[2]]}>
+                    <Html center style={{ pointerEvents: 'none' }}>
+                      <div style={{
+                        background: 'rgba(0,0,0,0.85)',
+                        border: `1px solid ${neonColor}`,
+                        color: neonColor,
+                        padding: '2px 8px',
+                        fontFamily: '"Courier New", monospace',
+                        fontSize: 11, letterSpacing: 1, whiteSpace: 'nowrap',
+                        textShadow: `0 0 6px ${neonColor}`,
+                      }}>
+                        {b.type.toUpperCase()}
+                      </div>
+                    </Html>
+                  </group>
+                </group>
+              )
+            })}
           </Suspense>
         </ModelErrorBoundary>
       </Canvas>
@@ -248,7 +343,7 @@ export default function CityScene() {
           Victim: <span style={{ color: '#d4b483' }}>{currentCase.case.victim.name}</span>
         </div>
         <div style={{ marginTop: 6, color: '#444', fontSize: 11 }}>
-          Click a building to enter · Scroll to zoom · Drag to rotate
+          WASD to move · Click a building to enter
         </div>
       </div>
 

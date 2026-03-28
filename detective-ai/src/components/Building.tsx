@@ -34,57 +34,17 @@ export const NEON_COLORS: Record<string, string> = {
   hospital:   '#ff66aa',
 }
 
-const BUILDING_COLORS: Record<string, string> = {
-  bar: '#993333', warehouse: '#555555', factory: '#886644',
-  industrial: '#555566', club: '#883377', apartments: '#445588',
-  office: '#448844', police: '#336699', restaurant: '#887744',
-  hotel: '#774488', museum: '#888844', shop: '#448888', hospital: '#884466',
-}
-
-const SCALE = 2
+// Kenney buildings are ~1 unit wide base. scale=1 keeps them at native size.
+// Roads are also 1-unit tiles. Everything at scale=1 is consistent.
+const BUILDING_SCALE = 1
 
 const ALL_URLS = [...new Set(Object.values(BUILDING_MODELS))]
 ALL_URLS.forEach((url) => useGLTF.preload(url))
 
-// Fallback box that is ALWAYS visible (uses emissive so it glows without light)
-function FallbackBox({ color, neonColor, height }: { color: string; neonColor: string; height: number }) {
-  return (
-    <group>
-      {/* Main body */}
-      <mesh position={[0, height / 2, 0]} castShadow>
-        <boxGeometry args={[SCALE * 1.4, height, SCALE * 1.4]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
-      {/* Neon trim on top */}
-      <mesh position={[0, height + 0.06, 0]}>
-        <boxGeometry args={[SCALE * 1.5, 0.12, SCALE * 1.5]} />
-        <meshBasicMaterial color={neonColor} />
-      </mesh>
-      {/* Glowing windows */}
-      {Array.from({ length: Math.floor(height / 1.2) }).map((_, i) => (
-        <group key={i}>
-          <mesh position={[SCALE * 0.71, 0.6 + i * 1.2, 0]}>
-            <boxGeometry args={[0.04, 0.4, 0.5]} />
-            <meshBasicMaterial color="#ffcc66" />
-          </mesh>
-          <mesh position={[-SCALE * 0.71, 0.6 + i * 1.2, 0]}>
-            <boxGeometry args={[0.04, 0.4, 0.5]} />
-            <meshBasicMaterial color="#ffcc66" />
-          </mesh>
-          <mesh position={[0, 0.6 + i * 1.2, SCALE * 0.71]}>
-            <boxGeometry args={[0.5, 0.4, 0.04]} />
-            <meshBasicMaterial color="#ffcc66" />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  )
-}
-
 function GLBModel({ url }: { url: string }) {
   const { scene } = useGLTF(url)
   const cloned = useMemo(() => scene.clone(true), [scene])
-  return <primitive object={cloned} scale={SCALE} />
+  return <primitive object={cloned} scale={BUILDING_SCALE} />
 }
 
 interface BuildingProps {
@@ -92,37 +52,28 @@ interface BuildingProps {
   position: [number, number, number]
   npcId: string | null
   onClick?: () => void
-  useGLB?: boolean
 }
 
-export default function Building({ type, position, npcId, onClick, useGLB = true }: BuildingProps) {
+export default function Building({ type, position, npcId, onClick }: BuildingProps) {
   const phase = useGameStore((s) => s.phase)
   const url = BUILDING_MODELS[type] ?? BUILDING_MODELS.office
   const neonColor = NEON_COLORS[type] ?? '#ffffff'
-  const color = BUILDING_COLORS[type] ?? '#555'
   const isInteractable = npcId !== null && phase === 'city'
-  const height = type === 'hotel' || type === 'office' ? 8 : type === 'apartments' ? 6 : 4
 
   return (
     <group position={position} onClick={isInteractable ? onClick : undefined}>
-      {useGLB ? (
-        <GLBModel url={url} />
-      ) : (
-        <FallbackBox color={color} neonColor={neonColor} height={height} />
-      )}
+      <GLBModel url={url} />
 
-      {/* Neon glow */}
       <pointLight
-        position={[0, height + 1, 0]}
+        position={[0, 4, 0]}
         color={neonColor}
-        intensity={isInteractable ? 10 : 3}
-        distance={isInteractable ? 16 : 8}
+        intensity={isInteractable ? 8 : 2}
+        distance={isInteractable ? 10 : 5}
       />
 
-      {/* Clickable hitbox */}
       {isInteractable && (
-        <mesh position={[0, height / 2, 0]} onClick={onClick} visible={false}>
-          <boxGeometry args={[SCALE * 3, height + 2, SCALE * 3]} />
+        <mesh position={[0, 2, 0]} onClick={onClick} visible={false}>
+          <boxGeometry args={[3, 6, 3]} />
         </mesh>
       )}
     </group>
