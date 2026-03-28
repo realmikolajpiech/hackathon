@@ -1,13 +1,14 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Html, useGLTF } from '@react-three/drei'
-import { useState, useRef, useMemo, useEffect, Suspense } from 'react'
+import { Html, useGLTF, OrbitControls } from '@react-three/drei'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import * as THREE from 'three'
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import FollowCamera from '../components/FollowCamera'
+import Player from '../components/Player'
 import { useGameStore } from '../store/gameStore'
 import { generateWorld } from '../ai/generateWorld'
 import { generateCase } from '../ai/generateCase'
-import { resolveCollisions, type Collider } from '../utils/collisions'
+import type { Collider } from '../utils/collisions'
 
 // ─── Preload player model ────────────────────────────────────────────────────
 useGLTF.preload('/models/characters/character-male-a.glb')
@@ -236,119 +237,7 @@ const OFFICE_COLLIDERS: Collider[] = [
   { x: -4.2, z:  1.0, hw: 0.4, hd: 1.2 },   // bookshelf
 ]
 
-// ─── Player ───────────────────────────────────────────────────────────────────
-
-const PLAYER_SPEED = 3.2
-const ROOM_BOUND = 4.0
-
-function OfficePlayer({ onPositionChange }: { onPositionChange: (pos: THREE.Vector3) => void }) {
-  const { scene } = useGLTF('/models/characters/character-male-a.glb')
-  const cloned = useMemo(() => {
-    const c = SkeletonUtils.clone(scene)
-    c.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        child.castShadow = true
-        child.receiveShadow = true
-      }
-    })
-    return c
-  }, [scene])
-
-  const groupRef = useRef<THREE.Group>(null)
-  const keys = useRef({ w: false, a: false, s: false, d: false })
-  const facingAngle = useRef(Math.PI)
-  const walkPhase = useRef(0)
-  const armLeft = useRef<THREE.Bone | null>(null)
-  const armRight = useRef<THREE.Bone | null>(null)
-  const legLeft = useRef<THREE.Bone | null>(null)
-  const legRight = useRef<THREE.Bone | null>(null)
-
-  useEffect(() => {
-    cloned.traverse((child) => {
-      if (!(child as THREE.Bone).isBone) return
-      switch (child.name) {
-        case 'arm-left':  armLeft.current  = child as THREE.Bone; break
-        case 'arm-right': armRight.current = child as THREE.Bone; break
-        case 'leg-left':  legLeft.current  = child as THREE.Bone; break
-        case 'leg-right': legRight.current = child as THREE.Bone; break
-      }
-    })
-    if (armLeft.current)  { armLeft.current.rotation.z  = -0.8; armLeft.current.scale.setScalar(0.6) }
-    if (armRight.current) { armRight.current.rotation.z =  0.8; armRight.current.scale.setScalar(0.6) }
-  }, [cloned])
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const k = e.key.toLowerCase()
-      if (k in keys.current) keys.current[k as keyof typeof keys.current] = true
-    }
-    function onKeyUp(e: KeyboardEvent) {
-      const k = e.key.toLowerCase()
-      if (k in keys.current) keys.current[k as keyof typeof keys.current] = false
-    }
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
-    }
-  }, [])
-
-  useFrame((_, delta) => {
-    if (!groupRef.current) return
-    const { w, a, s, d } = keys.current
-    const dir = new THREE.Vector3()
-    if (w) { dir.x -= 1; dir.z -= 1 }
-    if (s) { dir.x += 1; dir.z += 1 }
-    if (a) { dir.x -= 1; dir.z += 1 }
-    if (d) { dir.x += 1; dir.z -= 1 }
-
-    const isMoving = dir.lengthSq() > 0
-
-    if (isMoving) {
-      dir.normalize()
-      groupRef.current.position.addScaledVector(dir, PLAYER_SPEED * delta)
-      facingAngle.current = Math.atan2(dir.x, dir.z)
-    }
-
-    // Room bounds
-    groupRef.current.position.x = THREE.MathUtils.clamp(groupRef.current.position.x, -ROOM_BOUND, ROOM_BOUND)
-    groupRef.current.position.z = THREE.MathUtils.clamp(groupRef.current.position.z, -ROOM_BOUND, ROOM_BOUND)
-
-    // Collisions
-    const [rx, rz] = resolveCollisions(groupRef.current.position.x, groupRef.current.position.z, OFFICE_COLLIDERS)
-    groupRef.current.position.x = rx
-    groupRef.current.position.z = rz
-
-    const cur = groupRef.current.rotation.y
-    let diff = facingAngle.current - cur
-    diff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI
-    groupRef.current.rotation.y += diff * Math.min(1, 12 * delta)
-
-    // Skeletal animation
-    if (isMoving) {
-      walkPhase.current += delta * 12
-      const phase = walkPhase.current
-      if (legLeft.current)  legLeft.current.rotation.x  =  Math.sin(phase) * 0.45
-      if (legRight.current) legRight.current.rotation.x = -Math.sin(phase) * 0.45
-      if (armLeft.current)  armLeft.current.rotation.x  = -Math.sin(phase) * 0.35
-      if (armRight.current) armRight.current.rotation.x =  Math.sin(phase) * 0.35
-    } else {
-      if (legLeft.current)  legLeft.current.rotation.x  *= 0.85
-      if (legRight.current) legRight.current.rotation.x *= 0.85
-      if (armLeft.current)  armLeft.current.rotation.x  *= 0.85
-      if (armRight.current) armRight.current.rotation.x *= 0.85
-    }
-
-    onPositionChange(groupRef.current.position)
-  })
-
-  return (
-    <group ref={groupRef} position={[0, 0, 2.5]}>
-      <primitive object={cloned} scale={1} />
-    </group>
-  )
-}
+// ─── Player (uses shared Player component) ───────────────────────────────────
 
 // ─── Proximity triggers ───────────────────────────────────────────────────────
 
@@ -1057,6 +946,7 @@ function ResultModal({ result, onClose, onConfirm }: {
 export default function DetectiveOfficeScene() {
   const { world, setWorld, currentCase, suspectEvidence, accuse, setPhase } = useGameStore()
   const playerPos = useRef(new THREE.Vector3(0, 0, 2.5))
+  const controlsRef = useRef<OrbitControlsImpl>(null)
 
   const [showBoard, setShowBoard]       = useState(false)
   const [showComputer, setShowComputer] = useState(false)
@@ -1116,23 +1006,37 @@ export default function DetectiveOfficeScene() {
         shadows
         style={{ position: 'absolute', inset: 0 }}
       >
+        <OrbitControls
+          ref={controlsRef}
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.1}
+          minDistance={5}
+          maxDistance={25}
+          maxPolarAngle={Math.PI / 2.5}
+          minPolarAngle={Math.PI / 6}
+        />
         <OfficeRoom />
-        <FollowCamera target={playerPos.current} />
+        <FollowCamera
+          target={playerPos.current}
+          controlsRef={controlsRef}
+          wallBounds={{ minX: -4.4, maxX: 4.4, minZ: -4.4, maxZ: 4.4 }}
+        />
         <ProximityHints
           playerPos={playerPos}
           onBoard={() => setShowBoard(true)}
           onDesk={() => setShowComputer(true)}
           onDoor={() => setPhase('city')}
         />
-        <Suspense fallback={
-          <group position={[0, 0, 2.5]}>
-            <mesh position={[0, 0.5, 0]}>
-              <capsuleGeometry args={[0.15, 0.4, 8, 16]} />
-              <meshLambertMaterial color="#4488cc" />
-            </mesh>
-          </group>
-        }>
-          <OfficePlayer onPositionChange={(p) => playerPos.current.copy(p)} />
+        <Suspense fallback={null}>
+          <Player
+            onPositionChange={(p) => playerPos.current.copy(p)}
+            bounds={4.0}
+            startPosition={[0, 0, 2.5]}
+            playerLight
+            colliders={OFFICE_COLLIDERS}
+            characterScale={1.5}
+          />
         </Suspense>
       </Canvas>
 

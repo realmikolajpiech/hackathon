@@ -1,7 +1,8 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useGLTF, Html } from '@react-three/drei'
+import { useGLTF, Html, OrbitControls } from '@react-three/drei'
 import { Suspense, useState, useRef, useMemo, useEffect } from 'react'
 import * as THREE from 'three'
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import Player from '../components/Player'
 import FollowCamera from '../components/FollowCamera'
 import DialogBox from '../components/DialogBox'
@@ -619,6 +620,7 @@ export default function InteriorScene3D() {
   const [nearbyObj, setNearbyObj] = useState<{ obj: InteriorObject; index: number } | null>(null)
   const nearbyObjRef = useRef<{ obj: InteriorObject; index: number } | null>(null)
   const playerPos = useRef(new THREE.Vector3())
+  const controlsRef = useRef<OrbitControlsImpl>(null)
 
   function handleNearbyObjChange(nearby: { obj: InteriorObject; index: number } | null) {
     nearbyObjRef.current = nearby
@@ -730,6 +732,16 @@ export default function InteriorScene3D() {
         shadows
         style={{ position: 'absolute', inset: 0 }}
       >
+        <OrbitControls
+          ref={controlsRef}
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.1}
+          minDistance={5}
+          maxDistance={25}
+          maxPolarAngle={Math.PI / 2.5}
+          minPolarAngle={Math.PI / 6}
+        />
         <InteriorRoom buildingType={interior.building_type} />
         <FollowCamera target={playerPos.current} />
         <DoorProximityHint playerPos={playerPos} onExit={handleExit} />

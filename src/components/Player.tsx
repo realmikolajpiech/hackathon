@@ -21,6 +21,7 @@ interface PlayerProps {
   startPosition?: [number, number, number]
   playerLight?: boolean
   colliders?: readonly Collider[]
+  characterScale?: number
 }
 
 const _fwd = new THREE.Vector3()
@@ -37,7 +38,7 @@ interface CharacterBones {
   head: THREE.Bone | null
 }
 
-function CharacterModel({ bonesRef }: { bonesRef: React.MutableRefObject<CharacterBones> }) {
+function CharacterModel({ bonesRef, modelScale }: { bonesRef: React.MutableRefObject<CharacterBones>; modelScale: number }) {
   const { scene } = useGLTF(MODEL_URL)
   const clone = useMemo(() => {
     const c = SkeletonUtils.clone(scene)
@@ -72,7 +73,7 @@ function CharacterModel({ bonesRef }: { bonesRef: React.MutableRefObject<Charact
     bonesRef.current = bones
   }, [clone, bonesRef])
 
-  return <primitive object={clone} scale={SCALE.character} />
+  return <primitive object={clone} scale={modelScale} />
 }
 
 export default function Player({
@@ -81,7 +82,9 @@ export default function Player({
   startPosition,
   playerLight,
   colliders,
+  characterScale,
 }: PlayerProps) {
+  const modelScale = characterScale ?? SCALE.character
   const { camera } = useThree()
   const groupRef = useRef<THREE.Group>(null!)
   const modelRef = useRef<THREE.Group>(null!)
@@ -176,7 +179,7 @@ export default function Player({
         const freq = sprint ? 16 : 12
         walkPhase.current += dt * freq
         const phase = walkPhase.current
-        const s = SCALE.character
+        const s = modelScale
 
         // Body bob (+ base offset to keep feet above road surface)
         m.position.y = 0.08 + Math.abs(Math.sin(phase)) * 0.06 * s
@@ -191,7 +194,7 @@ export default function Player({
       } else {
         walkPhase.current += dt * 2
         const phase = walkPhase.current
-        const s = SCALE.character
+        const s = modelScale
 
         // Idle breathing (+ base offset)
         m.position.y = 0.08 + (Math.sin(phase) * 0.5 + 0.5) * 0.012 * s
@@ -216,12 +219,12 @@ export default function Player({
     <group ref={groupRef}>
       <group ref={modelRef}>
         <Suspense fallback={
-          <mesh position={[0, 0.5 * SCALE.character, 0]}>
-            <capsuleGeometry args={[0.15 * SCALE.character, 0.4 * SCALE.character, 8, 16]} />
+          <mesh position={[0, 0.5 * modelScale, 0]}>
+            <capsuleGeometry args={[0.15 * modelScale, 0.4 * modelScale, 8, 16]} />
             <meshLambertMaterial color="#4488cc" />
           </mesh>
         }>
-          <CharacterModel bonesRef={bonesRef} />
+          <CharacterModel bonesRef={bonesRef} modelScale={modelScale} />
         </Suspense>
       </group>
 
