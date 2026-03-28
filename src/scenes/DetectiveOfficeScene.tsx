@@ -330,6 +330,7 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
   onDesk: () => void
   onDoor: () => void
 }) {
+  const hasCase = !!useGameStore((s) => s.currentCase)
   const [nearBoard, setNearBoard] = useState(false)
   const [nearDesk, setNearDesk]   = useState(false)
   const [nearDoor, setNearDoor]   = useState(false)
@@ -381,7 +382,7 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
           </div>
         </Html>
       )}
-      {nearDoor && (
+      {nearDoor && hasCase && (
         <Html position={[0, 2.2, 3.8]} center distanceFactor={12}>
           <div style={{
             color: '#aaddff', fontSize: 11, letterSpacing: 2,
@@ -390,6 +391,18 @@ function ProximityHints({ playerPos, onBoard, onDesk, onDoor }: {
             border: '1px solid #aaddff44', whiteSpace: 'nowrap',
           }}>
             E — EXIT TO CITY
+          </div>
+        </Html>
+      )}
+      {nearDoor && !hasCase && (
+        <Html position={[0, 2.2, 3.8]} center distanceFactor={12}>
+          <div style={{
+            color: '#664422', fontSize: 11, letterSpacing: 2,
+            background: 'rgba(0,0,0,0.85)', padding: '4px 12px',
+            fontFamily: '"Courier New", monospace',
+            border: '1px solid #66442244', whiteSpace: 'nowrap',
+          }}>
+            SELECT A CASE FIRST
           </div>
         </Html>
       )}
