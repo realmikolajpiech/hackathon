@@ -28,7 +28,16 @@ const _rgt = new THREE.Vector3()
 const _dir = new THREE.Vector3()
 const _up = new THREE.Vector3(0, 1, 0)
 
-function CharacterModel() {
+interface CharacterBones {
+  armLeft: THREE.Bone | null
+  armRight: THREE.Bone | null
+  legLeft: THREE.Bone | null
+  legRight: THREE.Bone | null
+  torso: THREE.Bone | null
+  head: THREE.Bone | null
+}
+
+function CharacterModel({ bonesRef }: { bonesRef: React.MutableRefObject<CharacterBones> }) {
   const { scene } = useGLTF(MODEL_URL)
   const clone = useMemo(() => {
     const c = SkeletonUtils.clone(scene)
@@ -40,6 +49,29 @@ function CharacterModel() {
     })
     return c
   }, [scene])
+
+  useEffect(() => {
+    const bones: CharacterBones = {
+      armLeft: null, armRight: null,
+      legLeft: null, legRight: null,
+      torso: null, head: null,
+    }
+    clone.traverse((child) => {
+      if (!(child as THREE.Bone).isBone) return
+      switch (child.name) {
+        case 'arm-left':  bones.armLeft = child as THREE.Bone; break
+        case 'arm-right': bones.armRight = child as THREE.Bone; break
+        case 'leg-left':  bones.legLeft = child as THREE.Bone; break
+        case 'leg-right': bones.legRight = child as THREE.Bone; break
+        case 'torso':     bones.torso = child as THREE.Bone; break
+        case 'head':      bones.head = child as THREE.Bone; break
+      }
+    })
+    if (bones.armLeft)  bones.armLeft.rotation.z  =  1.1
+    if (bones.armRight) bones.armRight.rotation.z = -1.1
+    bonesRef.current = bones
+  }, [clone, bonesRef])
+
   return <primitive object={clone} scale={SCALE.character} />
 }
 
@@ -62,6 +94,11 @@ export default function Player({
   })
   const facingAngle = useRef(0)
   const walkPhase = useRef(0)
+  const bonesRef = useRef<CharacterBones>({
+    armLeft: null, armRight: null,
+    legLeft: null, legRight: null,
+    torso: null, head: null,
+  })
 
   useEffect(() => {
     if (groupRef.current && startPosition) {
@@ -131,22 +168,44 @@ export default function Player({
     angleDiff = THREE.MathUtils.euclideanModulo(angleDiff + Math.PI, Math.PI * 2) - Math.PI
     g.rotation.y += angleDiff * Math.min(1, TURN_SPEED * dt)
 
-    // Procedural animation
+    // Skeletal + procedural animation
     const m = modelRef.current
+    const bones = bonesRef.current
     if (m) {
       if (isMoving) {
         const freq = sprint ? 16 : 12
         walkPhase.current += dt * freq
+        const phase = walkPhase.current
         const s = SCALE.character
-        m.position.y = Math.abs(Math.sin(walkPhase.current)) * 0.06 * s
-        m.rotation.x = Math.sin(walkPhase.current * 0.5) * 0.07
-        m.rotation.z = Math.sin(walkPhase.current) * 0.035
+
+        // Body bob
+        m.position.y = Math.abs(Math.sin(phase)) * 0.06 * s
+
+        // Bone animation
+        if (bones.legLeft)  bones.legLeft.rotation.x  =  Math.sin(phase) * 0.45
+        if (bones.legRight) bones.legRight.rotation.x = -Math.sin(phase) * 0.45
+        if (bones.armLeft)  bones.armLeft.rotation.x  = -Math.sin(phase) * 0.35
+        if (bones.armRight) bones.armRight.rotation.x =  Math.sin(phase) * 0.35
+        if (bones.torso)    bones.torso.rotation.y    =  Math.sin(phase) * 0.04
+        if (bones.head)     bones.head.rotation.y     = -Math.sin(phase) * 0.03
       } else {
         walkPhase.current += dt * 2
+        const phase = walkPhase.current
         const s = SCALE.character
-        m.position.y = (Math.sin(walkPhase.current) * 0.5 + 0.5) * 0.012 * s
-        m.rotation.x = 0
-        m.rotation.z = Math.sin(walkPhase.current) * 0.008
+
+        // Idle breathing
+        m.position.y = (Math.sin(phase) * 0.5 + 0.5) * 0.012 * s
+
+        // Smoothly return bones to rest
+        if (bones.legLeft)  bones.legLeft.rotation.x  *= 0.85
+        if (bones.legRight) bones.legRight.rotation.x *= 0.85
+        if (bones.armLeft)  bones.armLeft.rotation.x  *= 0.85
+        if (bones.armRight) bones.armRight.rotation.x *= 0.85
+        if (bones.torso) {
+          bones.torso.rotation.y *= 0.85
+          bones.torso.rotation.x = Math.sin(phase) * 0.01
+        }
+        if (bones.head) bones.head.rotation.y *= 0.9
       }
     }
 
@@ -162,7 +221,7 @@ export default function Player({
             <meshLambertMaterial color="#4488cc" />
           </mesh>
         }>
-          <CharacterModel />
+          <CharacterModel bonesRef={bonesRef} />
         </Suspense>
       </group>
 
