@@ -1,24 +1,61 @@
-import { useRef, useEffect } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useRef, useEffect, Suspense, Component, type ReactNode } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { useGLTF, Clone } from '@react-three/drei'
 import * as THREE from 'three'
 
 const SPEED = 3
+const MODEL_URL = '/models/characters/character-male-a.glb'
+
+useGLTF.preload(MODEL_URL)
 
 interface PlayerProps {
   onPositionChange?: (pos: THREE.Vector3) => void
 }
 
+// Separate component so useGLTF suspension doesn't block movement logic
+function CharacterModel() {
+  const { scene } = useGLTF(MODEL_URL)
+  return <Clone object={scene} scale={1} />
+}
+
+function FallbackBody() {
+  return (
+    <group>
+      <mesh position={[0, 0.25, 0]}>
+        <capsuleGeometry args={[0.12, 0.3, 8, 16]} />
+        <meshLambertMaterial color="#4488cc" />
+      </mesh>
+      <mesh position={[0, 0.55, 0]}>
+        <sphereGeometry args={[0.1, 12, 12]} />
+        <meshLambertMaterial color="#ffcc88" />
+      </mesh>
+    </group>
+  )
+}
+
+class ModelCatcher extends Component<{ children: ReactNode }, { err: boolean }> {
+  state = { err: false }
+  static getDerivedStateFromError() { return { err: true } }
+  render() { return this.state.err ? <FallbackBody /> : this.props.children }
+}
+
 export default function Player({ onPositionChange }: PlayerProps) {
+  const { camera } = useThree()
   const groupRef = useRef<THREE.Group>(null)
   const keys = useRef({ w: false, a: false, s: false, d: false })
   const facingAngle = useRef(0)
 
+  const _forward = useRef(new THREE.Vector3())
+  const _right = useRef(new THREE.Vector3())
+  const _dir = useRef(new THREE.Vector3())
+  const _up = useRef(new THREE.Vector3(0, 1, 0))
+
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
+    const onKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase()
       if (k in keys.current) keys.current[k as keyof typeof keys.current] = true
     }
-    function onKeyUp(e: KeyboardEvent) {
+    const onKeyUp = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase()
       if (k in keys.current) keys.current[k as keyof typeof keys.current] = false
     }
@@ -34,12 +71,20 @@ export default function Player({ onPositionChange }: PlayerProps) {
     if (!groupRef.current) return
 
     const { w, a, s, d } = keys.current
-    const dir = new THREE.Vector3()
+    const forward = _forward.current
+    const right = _right.current
+    const dir = _dir.current
 
-    if (w) { dir.x -= 1; dir.z -= 1 }
-    if (s) { dir.x += 1; dir.z += 1 }
-    if (a) { dir.x -= 1; dir.z += 1 }
-    if (d) { dir.x += 1; dir.z -= 1 }
+    camera.getWorldDirection(forward)
+    forward.y = 0
+    forward.normalize()
+    right.crossVectors(forward, _up.current).normalize()
+
+    dir.set(0, 0, 0)
+    if (w) dir.add(forward)
+    if (s) dir.sub(forward)
+    if (a) dir.sub(right)
+    if (d) dir.add(right)
 
     if (dir.lengthSq() > 0) {
       dir.normalize()
@@ -57,26 +102,18 @@ export default function Player({ onPositionChange }: PlayerProps) {
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
-      {/* Ground marker */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <ringGeometry args={[0.18, 0.28, 32]} />
+      {/* Ground marker — always visible */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[0.2, 0.35, 24]} />
         <meshBasicMaterial color="#00ff88" side={THREE.DoubleSide} transparent opacity={0.8} />
       </mesh>
 
-      {/* Body */}
-      <mesh position={[0, 0.32, 0]}>
-        <capsuleGeometry args={[0.1, 0.25, 8, 16]} />
-        <meshStandardMaterial color="#3366cc" />
-      </mesh>
-
-      {/* Head */}
-      <mesh position={[0, 0.62, 0]}>
-        <sphereGeometry args={[0.1, 16, 16]} />
-        <meshStandardMaterial color="#ffcc88" />
-      </mesh>
-
-      {/* Small spotlight above */}
-      <pointLight position={[0, 1.5, 0]} color="#ffffff" intensity={2} distance={5} />
+      {/* 3D model with fallback */}
+      <ModelCatcher>
+        <Suspense fallback={<FallbackBody />}>
+          <CharacterModel />
+        </Suspense>
+      </ModelCatcher>
     </group>
   )
 }

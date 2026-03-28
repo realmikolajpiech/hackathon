@@ -1,5 +1,4 @@
-import { useMemo } from 'react'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF, Clone } from '@react-three/drei'
 import { useGameStore } from '../store/gameStore'
 
 const BUILDING_MODELS: Record<string, string> = {
@@ -34,18 +33,8 @@ export const NEON_COLORS: Record<string, string> = {
   hospital:   '#ff66aa',
 }
 
-// Kenney buildings are ~1 unit wide base. scale=1 keeps them at native size.
-// Roads are also 1-unit tiles. Everything at scale=1 is consistent.
-const BUILDING_SCALE = 1
-
 const ALL_URLS = [...new Set(Object.values(BUILDING_MODELS))]
 ALL_URLS.forEach((url) => useGLTF.preload(url))
-
-function GLBModel({ url }: { url: string }) {
-  const { scene } = useGLTF(url)
-  const cloned = useMemo(() => scene.clone(true), [scene])
-  return <primitive object={cloned} scale={BUILDING_SCALE} />
-}
 
 interface BuildingProps {
   type: string
@@ -57,19 +46,12 @@ interface BuildingProps {
 export default function Building({ type, position, npcId, onClick }: BuildingProps) {
   const phase = useGameStore((s) => s.phase)
   const url = BUILDING_MODELS[type] ?? BUILDING_MODELS.office
-  const neonColor = NEON_COLORS[type] ?? '#ffffff'
+  const { scene } = useGLTF(url)
   const isInteractable = npcId !== null && phase === 'city'
 
   return (
     <group position={position} onClick={isInteractable ? onClick : undefined}>
-      <GLBModel url={url} />
-
-      <pointLight
-        position={[0, 4, 0]}
-        color={neonColor}
-        intensity={isInteractable ? 8 : 2}
-        distance={isInteractable ? 10 : 5}
-      />
+      <Clone object={scene} />
 
       {isInteractable && (
         <mesh position={[0, 2, 0]} onClick={onClick} visible={false}>
