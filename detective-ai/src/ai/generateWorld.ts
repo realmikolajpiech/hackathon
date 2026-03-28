@@ -64,6 +64,9 @@ export async function generateWorld(apiKey: string): Promise<WorldData> {
   )
   if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
   const data = await response.json()
-  const text = data.candidates[0].content.parts[0].text
-  return JSON.parse(text) as WorldData
+  const raw: string = data.candidates[0].content.parts[0].text
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start === -1 || end === -1) throw new Error('No JSON object found in response')
+  return JSON.parse(raw.slice(start, end + 1)) as WorldData
 }

@@ -7,7 +7,7 @@ interface NotebookProps {
 
 export default function Notebook({ onClose }: NotebookProps) {
   const [newNote, setNewNote] = useState('')
-  const { notebook, currentCase, addNote, addSuspicion } = useGameStore()
+  const { notebook, currentCase, collectedEvidence, addNote, addSuspicion } = useGameStore()
 
   function handleAddNote() {
     if (newNote.trim()) {
@@ -70,8 +70,34 @@ export default function Notebook({ onClose }: NotebookProps) {
         ))}
       </div>
 
+      {/* Evidence board */}
+      {collectedEvidence.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ color: '#d4b483', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
+            ◆ EVIDENCE ({collectedEvidence.length})
+          </div>
+          {collectedEvidence.map((ev) => (
+            <div key={ev.id} style={{
+              padding: '8px 12px', marginBottom: 6,
+              background: 'rgba(212,180,131,0.06)',
+              border: '1px solid #d4b48333',
+            }}>
+              <div style={{ fontSize: 13, color: '#d4b483', marginBottom: 2 }}>
+                {ev.name}
+              </div>
+              <div style={{ fontSize: 11, color: '#666', fontStyle: 'italic', marginBottom: 4 }}>
+                {ev.description}
+              </div>
+              <div style={{ fontSize: 10, color: '#555', letterSpacing: 1 }}>
+                Found at: {ev.found_at}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ marginBottom: 20 }}>
-        <div style={{ color: '#888', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>CLUES</div>
+        <div style={{ color: '#888', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>NOTES</div>
         {notebook.clues.length === 0 ? (
           <div style={{ color: '#444', fontSize: 12, fontStyle: 'italic' }}>No notes yet...</div>
         ) : (

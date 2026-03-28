@@ -18,6 +18,7 @@ export default function InteriorScene({ apiKey }: InteriorSceneProps) {
     setPhase,
     examineObject,
     examinedObjects,
+    collectEvidence,
     accuse,
     addNote,
   } = useGameStore()
@@ -57,9 +58,13 @@ export default function InteriorScene({ apiKey }: InteriorSceneProps) {
     }
   }
 
-  function handleExamine(objId: string, examineText: string) {
+  function handleExamine(objId: string, examineText: string, evidenceId?: string) {
     examineObject(objId)
     addNote(`[${interior.name}] ${examineText}`)
+    if (evidenceId && currentCase) {
+      const item = currentCase.evidence_items?.find((e) => e.id === evidenceId)
+      if (item) collectEvidence(item)
+    }
   }
 
   return (
@@ -193,16 +198,29 @@ export default function InteriorScene({ apiKey }: InteriorSceneProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {currentInterior.objects.map((obj) => {
+              {interior.objects.map((obj) => {
                 const examined = examinedObjects.includes(obj.id)
+                const hasEvidence = !!obj.evidence_id
+                const evidenceItem = hasEvidence
+                  ? currentCase.evidence_items?.find((e) => e.id === obj.evidence_id)
+                  : undefined
+
                 return (
                   <div key={obj.id}>
                     <div
-                      onClick={() => !examined && handleExamine(obj.id, obj.examine_text)}
+                      onClick={() =>
+                        !examined && handleExamine(obj.id, obj.examine_text, obj.evidence_id)
+                      }
                       style={{
                         padding: '10px 14px',
-                        border: `1px solid ${examined ? '#8B691444' : '#1e1e2e'}`,
-                        background: examined ? 'rgba(139,105,20,0.06)' : 'transparent',
+                        border: `1px solid ${
+                          examined
+                            ? hasEvidence ? '#d4b48355' : '#8B691433'
+                            : hasEvidence ? '#8B691444' : '#1e1e2e'
+                        }`,
+                        background: examined
+                          ? hasEvidence ? 'rgba(212,180,131,0.06)' : 'rgba(139,105,20,0.04)'
+                          : 'transparent',
                         cursor: examined ? 'default' : 'pointer',
                         display: 'flex', justifyContent: 'space-between',
                         alignItems: 'center', transition: 'all 0.15s',
@@ -210,14 +228,16 @@ export default function InteriorScene({ apiKey }: InteriorSceneProps) {
                       onMouseEnter={(e) => {
                         if (!examined) {
                           const el = e.currentTarget as HTMLElement
-                          el.style.borderColor = '#8B6914'
-                          el.style.background = 'rgba(139,105,20,0.05)'
+                          el.style.borderColor = hasEvidence ? '#d4b483' : '#8B6914'
+                          el.style.background = hasEvidence
+                            ? 'rgba(212,180,131,0.07)'
+                            : 'rgba(139,105,20,0.05)'
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!examined) {
                           const el = e.currentTarget as HTMLElement
-                          el.style.borderColor = '#1e1e2e'
+                          el.style.borderColor = hasEvidence ? '#8B691444' : '#1e1e2e'
                           el.style.background = 'transparent'
                         }
                       }}
@@ -226,23 +246,50 @@ export default function InteriorScene({ apiKey }: InteriorSceneProps) {
                         {examined ? '▸ ' : '○ '}
                         {obj.name}
                       </span>
-                      {!examined && (
-                        <span style={{ fontSize: 9, color: '#444', letterSpacing: 2 }}>
-                          EXAMINE
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {hasEvidence && !examined && (
+                          <span style={{ fontSize: 9, color: '#8B6914', letterSpacing: 1 }}>
+                            ◆ EVIDENCE
+                          </span>
+                        )}
+                        {!examined && (
+                          <span style={{ fontSize: 9, color: '#444', letterSpacing: 2 }}>
+                            EXAMINE
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {examined && (
                       <div style={{
                         padding: '12px 16px 12px 28px',
                         background: 'rgba(3,3,12,0.7)',
-                        borderLeft: '2px solid #8B6914',
+                        borderLeft: `2px solid ${hasEvidence ? '#d4b483' : '#8B6914'}`,
                         marginLeft: 14,
-                        fontSize: 13, color: '#b8965a',
-                        lineHeight: 1.8, fontStyle: 'italic',
                       }}>
-                        {obj.examine_text}
+                        <div style={{
+                          fontSize: 13, color: '#b8965a',
+                          lineHeight: 1.8, fontStyle: 'italic', marginBottom: evidenceItem ? 10 : 0,
+                        }}>
+                          {obj.examine_text}
+                        </div>
+                        {evidenceItem && (
+                          <div style={{
+                            marginTop: 8, padding: '8px 12px',
+                            background: 'rgba(212,180,131,0.08)',
+                            border: '1px solid #d4b48344',
+                          }}>
+                            <div style={{ fontSize: 9, color: '#8B6914', letterSpacing: 2, marginBottom: 4 }}>
+                              ◆ EVIDENCE COLLECTED
+                            </div>
+                            <div style={{ fontSize: 13, color: '#d4b483', fontWeight: 'bold' }}>
+                              {evidenceItem.name}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#888', marginTop: 2, fontStyle: 'italic' }}>
+                              {evidenceItem.description}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
