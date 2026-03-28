@@ -97,11 +97,13 @@ interface GameState {
   dialogHistory: { npcId: string; messages: Message[] }[]
   accusation: string | null
   suspectEvidence: Record<string, string[]>  // npcId -> evidenceIds pinned to them
+  cityPlayerPosition: [number, number, number] | null
   isLoading: boolean
   voiceActive: boolean
   inventoryOpen: boolean
   selectedInventoryItem: EvidenceItem | null
 
+  setCityPlayerPosition: (pos: [number, number, number]) => void
   setPhase: (phase: GamePhase) => void
   setWorld: (world: WorldData) => void
   setCurrentCase: (caseData: CaseData) => void
@@ -135,6 +137,7 @@ const initialState = {
   dialogHistory: [] as { npcId: string; messages: Message[] }[],
   accusation: null,
   suspectEvidence: {} as Record<string, string[]>,
+  cityPlayerPosition: null as [number, number, number] | null,
   isLoading: false,
   voiceActive: false,
   inventoryOpen: false,
@@ -144,6 +147,7 @@ const initialState = {
 export const useGameStore = create<GameState>((set) => ({
   ...initialState,
 
+  setCityPlayerPosition: (pos) => set({ cityPlayerPosition: pos }),
   setPhase: (phase) => set({ phase }),
   setWorld: (world) => set({ world }),
   setCurrentCase: (caseData) => set({ currentCase: caseData }),

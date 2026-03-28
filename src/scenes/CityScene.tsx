@@ -108,17 +108,18 @@ const FILLER_SKYSCRAPERS = [
   '/models/commercial/building-skyscraper-b.glb',
   '/models/commercial/building-skyscraper-c.glb',
 ]
-const FILLER_SMALL = [
-  '/models/commercial/low-detail-building-a.glb',
-  '/models/commercial/low-detail-building-b.glb',
-  '/models/commercial/low-detail-building-c.glb',
-  '/models/commercial/low-detail-building-d.glb',
-  '/models/commercial/low-detail-building-e.glb',
-  '/models/industrial/building-a.glb',
-  '/models/industrial/building-b.glb',
-];
+const FILLER_MEDIUM = [
+  '/models/commercial/building-a.glb',
+  '/models/commercial/building-b.glb',
+  '/models/commercial/building-c.glb',
+  '/models/commercial/building-e.glb',
+  '/models/commercial/building-h.glb',
+]
 
-[...ROAD_MODELS, ...FILLER_SKYSCRAPERS, ...FILLER_SMALL].forEach(u => useGLTF.preload(u))
+// Max possible distance from center (used for probability gradient)
+const MAX_BLOCK_DIST = (EXT - 1 + BLOCK_HALF) * W
+
+;[...ROAD_MODELS, ...FILLER_SKYSCRAPERS, ...FILLER_MEDIUM].forEach(u => useGLTF.preload(u))
 
 function extractFirstMesh(scene: THREE.Object3D): THREE.Mesh | null {
   let found: THREE.Mesh | null = null
@@ -200,8 +201,9 @@ function RoadGrid() {
 }
 
 // ─── Filler buildings (4 per block) ─────────────────────────────────────────
-const FILLER_SCALE = WORLD_SCALE * 0.38
-const QUAD_OFF = W * 0.38
+const FILLER_SCALE = WORLD_SCALE * 0.7
+const FILLER_MEDIUM_SCALE = WORLD_SCALE * 0.55
+const QUAD_OFF = W * 0.42
 const QUAD_OFFSETS: [number, number][] = [
   [-QUAD_OFF, -QUAD_OFF],
   [-QUAD_OFF,  QUAD_OFF],
@@ -211,15 +213,23 @@ const QUAD_OFFSETS: [number, number][] = [
 
 function FillerBuildings({ excludePositions }: { excludePositions?: [number, number][] }) {
   const skyscrapers = FILLER_SKYSCRAPERS.map(u => useGLTF(u).scene)
-  const smalls = FILLER_SMALL.map(u => useGLTF(u).scene)
+  const mediums = FILLER_MEDIUM.map(u => useGLTF(u).scene)
 
   useEffect(() => {
-    ;[...skyscrapers, ...smalls].forEach((s) => { enableShadows(s); enableWindowGlow(s, '#ffeeaa') })
+    ;[...skyscrapers, ...mediums].forEach((s) => { enableShadows(s); enableWindowGlow(s, '#ffeeaa') })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const placements = useMemo(() => {
-    const out: { pos: [number, number, number]; scene: THREE.Group }[] = []
+    const out: { pos: [number, number, number]; scene: THREE.Group; tall: boolean }[] = []
     let idx = 0
+
+    // Position-based hash so each spot has stable randomness independent of iteration order
+    const posHash = (x: number, z: number) => {
+      const ix = Math.round(x * 10)
+      const iz = Math.round(z * 10)
+      const h = (ix * 73856093) ^ (iz * 19349663)
+      return ((h >>> 0) % 10000) / 10000
+    }
 
     for (let bx = -EXT + 1; bx < EXT; bx += ROAD_SPACING) {
       for (let bz = -EXT + 1; bz < EXT; bz += ROAD_SPACING) {
@@ -232,24 +242,27 @@ function FillerBuildings({ excludePositions }: { excludePositions?: [number, num
         })) { idx += 4; continue }
 
         const dist = Math.max(Math.abs(cx), Math.abs(cz))
-        const pool = dist < ROAD_SPACING * W * 1.2 ? skyscrapers : smalls
+        // Linear gradient: 100% skyscraper at center → 60% at max edge
+        const skyscraperProb = 1.0 - 0.4 * Math.min(dist / MAX_BLOCK_DIST, 1)
 
         for (const [ox, oz] of QUAD_OFFSETS) {
+          const tall = posHash(cx + ox, cz + oz) < skyscraperProb
           out.push({
             pos: [cx + ox, 0, cz + oz],
-            scene: pool[idx % pool.length],
+            scene: tall ? skyscrapers[idx % skyscrapers.length] : mediums[idx % mediums.length],
+            tall,
           })
           idx++
         }
       }
     }
     return out
-  }, [skyscrapers, smalls, excludePositions])
+  }, [skyscrapers, mediums, excludePositions])
 
   return (
     <group>
       {placements.map((p, i) => (
-        <Clone key={i} object={p.scene} position={p.pos} scale={FILLER_SCALE} />
+        <Clone key={i} object={p.scene} position={p.pos} scale={p.tall ? FILLER_SCALE : FILLER_MEDIUM_SCALE} />
       ))}
     </group>
   )
@@ -392,6 +405,7 @@ export default function CityScene() {
     collectedEvidence,
     openInventory,
     inventoryOpen,
+    cityPlayerPosition, setCityPlayerPosition,
   } = useGameStore()
   const [showNotebook, setShowNotebook] = useState(false)
   const playerPos = useRef(new THREE.Vector3(0, 0, 0))
@@ -486,7 +500,13 @@ export default function CityScene() {
         return bt.includes(type) || type.includes(bt)
       })
 
-    if (interior) { setCurrentInterior(interior); setPhase('interior'); return }
+    if (interior) {
+      const p = playerPos.current
+      setCityPlayerPosition([p.x, p.y, p.z])
+      setCurrentInterior(interior)
+      setPhase('interior')
+      return
+    }
     if (npcId) {
       const npc = currentCase.npcs.find((n) => n.id === npcId)
       if (npc) setActiveNPC(npc)
@@ -532,7 +552,11 @@ export default function CityScene() {
         />
 
         <Suspense fallback={null}>
-          <Player onPositionChange={(pos) => playerPos.current.copy(pos)} colliders={cityColliders} />
+          <Player
+            onPositionChange={(pos) => playerPos.current.copy(pos)}
+            colliders={cityColliders}
+            startPosition={cityPlayerPosition ?? undefined}
+          />
         </Suspense>
         <FollowCamera target={playerPos.current} controlsRef={controlsRef} />
         <ProximityChecker buildings={buildings} playerPos={playerPos} onNearbyChange={handleNearbyChange} />
