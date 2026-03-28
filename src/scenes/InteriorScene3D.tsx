@@ -1,8 +1,8 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { useGLTF, Html } from '@react-three/drei'
 import { Suspense, useState, useRef, useMemo, useEffect } from 'react'
-import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import Player from '../components/Player'
 import FollowCamera from '../components/FollowCamera'
 import DialogBox from '../components/DialogBox'
 import VoiceUI from '../components/VoiceUI'
@@ -10,6 +10,7 @@ import Notebook from '../components/Notebook'
 import Inventory from '../components/Inventory'
 import { useGameStore } from '../store/gameStore'
 import type { InteriorObject } from '../store/gameStore'
+import { SCALE } from '../config/modelScales'
 
 // ─── Asset paths ──────────────────────────────────────────────────────────────
 
@@ -460,7 +461,7 @@ function NPCCharacter({ npcId, npcName, neonColor }: { npcId: string; npcName: s
 
   return (
     <group position={[0, 0, -2.8]}>
-      <primitive object={cloned} scale={1} rotation={[0, Math.PI, 0]} />
+      <primitive object={cloned} scale={SCALE.character} rotation={[0, Math.PI, 0]} />
       <pointLight position={[0, 2, 0]} color={neonColor} intensity={8} distance={4} />
 
       <Html position={[0, 2.8, 0]} center distanceFactor={12}>
@@ -524,74 +525,6 @@ function ObjectProximityChecker({
   return null
 }
 
-// ─── Interior player controller ───────────────────────────────────────────────
-
-const PLAYER_SPEED = 5
-const ROOM_BOUND = 3.1
-
-interface InteriorPlayerProps {
-  onPositionChange: (pos: THREE.Vector3) => void
-}
-
-function InteriorPlayer({ onPositionChange }: InteriorPlayerProps) {
-  const { scene } = useGLTF('/models/characters/character-male-a.glb')
-  const cloned = useMemo(() => scene.clone(true), [scene])
-  const groupRef = useRef<THREE.Group>(null)
-  const keys = useRef({ w: false, a: false, s: false, d: false })
-  const facingAngle = useRef(Math.PI) // start facing north
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const k = e.key.toLowerCase()
-      if (k in keys.current) keys.current[k as keyof typeof keys.current] = true
-    }
-    function onKeyUp(e: KeyboardEvent) {
-      const k = e.key.toLowerCase()
-      if (k in keys.current) keys.current[k as keyof typeof keys.current] = false
-    }
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
-    }
-  }, [])
-
-  useFrame((_, delta) => {
-    if (!groupRef.current) return
-    const { w, a, s, d } = keys.current
-    const dir = new THREE.Vector3()
-
-    if (w) { dir.x -= 1; dir.z -= 1 }
-    if (s) { dir.x += 1; dir.z += 1 }
-    if (a) { dir.x -= 1; dir.z += 1 }
-    if (d) { dir.x += 1; dir.z -= 1 }
-
-    if (dir.lengthSq() > 0) {
-      dir.normalize()
-      const next = groupRef.current.position.clone().addScaledVector(dir, PLAYER_SPEED * delta)
-      // Clamp within room
-      next.x = Math.max(-ROOM_BOUND, Math.min(ROOM_BOUND, next.x))
-      next.z = Math.max(-ROOM_BOUND, Math.min(ROOM_BOUND, next.z))
-      groupRef.current.position.copy(next)
-      facingAngle.current = Math.atan2(dir.x, dir.z)
-    }
-
-    const cur = groupRef.current.rotation.y
-    let diff = facingAngle.current - cur
-    diff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI
-    groupRef.current.rotation.y += diff * Math.min(1, 12 * delta)
-
-    onPositionChange(groupRef.current.position)
-  })
-
-  return (
-    <group ref={groupRef} position={[0, 0, 2.2]}>
-      <primitive object={cloned} scale={1} />
-      <pointLight position={[0, 2.5, 0]} color="#ffffee" intensity={4} distance={6} />
-    </group>
-  )
-}
 
 // ─── Main scene ───────────────────────────────────────────────────────────────
 
@@ -727,7 +660,12 @@ export default function InteriorScene3D() {
             />
           )}
 
-          <InteriorPlayer onPositionChange={(p) => playerPos.current.copy(p)} />
+          <Player
+            onPositionChange={(p) => playerPos.current.copy(p)}
+            bounds={3.1}
+            startPosition={[0, 0, 2.2]}
+            playerLight
+          />
           <FollowCamera target={playerPos.current} />
           <ObjectProximityChecker
             objects={interior.objects.slice(0, 6)}

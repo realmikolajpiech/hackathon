@@ -1,127 +1,148 @@
-import { useRef, useEffect, Suspense, Component, type ReactNode } from 'react'
+import { useRef, useEffect, useMemo, Suspense } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useGLTF, Clone } from '@react-three/drei'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { SCALE } from '../config/modelScales'
 
-const SPEED = 3
 const MODEL_URL = '/models/characters/character-male-a.glb'
-
 useGLTF.preload(MODEL_URL)
+
+const MOVE_SPEED = 5
+const SPRINT_MULT = 1.8
+const TURN_SPEED = 12
 
 interface PlayerProps {
   onPositionChange?: (pos: THREE.Vector3) => void
+  /** Clamp position within [-bounds, bounds] on X and Z */
+  bounds?: number
+  startPosition?: [number, number, number]
+  /** Attach a subtle overhead light to the player */
+  playerLight?: boolean
 }
 
-// Separate component so useGLTF suspension doesn't block movement logic
+const _fwd = new THREE.Vector3()
+const _rgt = new THREE.Vector3()
+const _dir = new THREE.Vector3()
+const _up = new THREE.Vector3(0, 1, 0)
+
+/** Loads and renders just the character model — safe to suspend */
 function CharacterModel() {
   const { scene } = useGLTF(MODEL_URL)
-  useEffect(() => {
-    scene.traverse((child) => {
+  const clone = useMemo(() => {
+    const c = SkeletonUtils.clone(scene)
+    c.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         child.castShadow = true
         child.receiveShadow = true
       }
     })
+    return c
   }, [scene])
-  return <Clone object={scene} scale={1} />
+  return <primitive object={clone} scale={SCALE.character} />
 }
 
-function FallbackBody() {
-  return (
-    <group>
-      <mesh position={[0, 0.25, 0]}>
-        <capsuleGeometry args={[0.12, 0.3, 8, 16]} />
-        <meshLambertMaterial color="#4488cc" />
-      </mesh>
-      <mesh position={[0, 0.55, 0]}>
-        <sphereGeometry args={[0.1, 12, 12]} />
-        <meshLambertMaterial color="#ffcc88" />
-      </mesh>
-    </group>
-  )
-}
-
-class ModelCatcher extends Component<{ children: ReactNode }, { err: boolean }> {
-  state = { err: false }
-  static getDerivedStateFromError() { return { err: true } }
-  render() { return this.state.err ? <FallbackBody /> : this.props.children }
-}
-
-export default function Player({ onPositionChange }: PlayerProps) {
+export default function Player({
+  onPositionChange,
+  bounds,
+  startPosition,
+  playerLight,
+}: PlayerProps) {
   const { camera } = useThree()
-  const groupRef = useRef<THREE.Group>(null)
-  const keys = useRef({ w: false, a: false, s: false, d: false })
+  const groupRef = useRef<THREE.Group>(null!)
+  const input = useRef({
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+    sprint: false,
+  })
   const facingAngle = useRef(0)
 
-  const _forward = useRef(new THREE.Vector3())
-  const _right = useRef(new THREE.Vector3())
-  const _dir = useRef(new THREE.Vector3())
-  const _up = useRef(new THREE.Vector3(0, 1, 0))
-
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase()
-      if (k in keys.current) keys.current[k as keyof typeof keys.current] = true
-    }
-    const onKeyUp = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase()
-      if (k in keys.current) keys.current[k as keyof typeof keys.current] = false
-    }
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
+    if (groupRef.current && startPosition) {
+      groupRef.current.position.set(...startPosition)
     }
   }, [])
 
-  useFrame((_, delta) => {
-    if (!groupRef.current) return
+  useEffect(() => {
+    const apply = (key: string, pressed: boolean) => {
+      switch (key) {
+        case 'w': case 'arrowup':    input.current.forward  = pressed; break
+        case 's': case 'arrowdown':  input.current.backward = pressed; break
+        case 'a': case 'arrowleft':  input.current.left     = pressed; break
+        case 'd': case 'arrowright': input.current.right    = pressed; break
+        case 'shift':                input.current.sprint   = pressed; break
+      }
+    }
+    const onDown = (e: KeyboardEvent) => apply(e.key.toLowerCase(), true)
+    const onUp   = (e: KeyboardEvent) => apply(e.key.toLowerCase(), false)
+    window.addEventListener('keydown', onDown)
+    window.addEventListener('keyup', onUp)
+    return () => {
+      window.removeEventListener('keydown', onDown)
+      window.removeEventListener('keyup', onUp)
+    }
+  }, [])
 
-    const { w, a, s, d } = keys.current
-    const forward = _forward.current
-    const right = _right.current
-    const dir = _dir.current
+  useFrame((_, dt) => {
+    const g = groupRef.current
+    if (!g) return
 
-    camera.getWorldDirection(forward)
-    forward.y = 0
-    forward.normalize()
-    right.crossVectors(forward, _up.current).normalize()
+    const { forward, backward, left, right, sprint } = input.current
 
-    dir.set(0, 0, 0)
-    if (w) dir.add(forward)
-    if (s) dir.sub(forward)
-    if (a) dir.sub(right)
-    if (d) dir.add(right)
+    camera.getWorldDirection(_fwd)
+    _fwd.y = 0
+    if (_fwd.lengthSq() < 0.001) return
+    _fwd.normalize()
+    _rgt.crossVectors(_fwd, _up).normalize()
 
-    if (dir.lengthSq() > 0) {
-      dir.normalize()
-      groupRef.current.position.addScaledVector(dir, SPEED * delta)
-      facingAngle.current = Math.atan2(dir.x, dir.z)
+    _dir.set(0, 0, 0)
+    if (forward)  _dir.add(_fwd)
+    if (backward) _dir.sub(_fwd)
+    if (right)    _dir.add(_rgt)
+    if (left)     _dir.sub(_rgt)
+
+    if (_dir.lengthSq() > 0.001) {
+      _dir.normalize()
+      const speed = sprint ? MOVE_SPEED * SPRINT_MULT : MOVE_SPEED
+      g.position.addScaledVector(_dir, speed * dt)
+      facingAngle.current = Math.atan2(_dir.x, _dir.z)
     }
 
-    const cur = groupRef.current.rotation.y
-    let diff = facingAngle.current - cur
-    diff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI
-    groupRef.current.rotation.y += diff * Math.min(1, 10 * delta)
+    if (bounds !== undefined) {
+      g.position.x = THREE.MathUtils.clamp(g.position.x, -bounds, bounds)
+      g.position.z = THREE.MathUtils.clamp(g.position.z, -bounds, bounds)
+    }
 
-    onPositionChange?.(groupRef.current.position)
+    let angleDiff = facingAngle.current - g.rotation.y
+    angleDiff = THREE.MathUtils.euclideanModulo(angleDiff + Math.PI, Math.PI * 2) - Math.PI
+    g.rotation.y += angleDiff * Math.min(1, TURN_SPEED * dt)
+
+    onPositionChange?.(g.position)
   })
 
   return (
-    <group ref={groupRef} position={[0, 0, 0]}>
-      {/* Ground marker — always visible */}
+    <group ref={groupRef}>
+      {/* 3D model — loads async, won't block the group from rendering */}
+      <Suspense fallback={
+        <mesh position={[0, 0.5 * SCALE.character, 0]}>
+          <capsuleGeometry args={[0.15 * SCALE.character, 0.4 * SCALE.character, 8, 16]} />
+          <meshLambertMaterial color="#4488cc" />
+        </mesh>
+      }>
+        <CharacterModel />
+      </Suspense>
+
+      {/* Ground ring marker */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <ringGeometry args={[0.2, 0.35, 24]} />
+        <ringGeometry args={[0.3 * SCALE.character, 0.5 * SCALE.character, 24]} />
         <meshBasicMaterial color="#00ff88" side={THREE.DoubleSide} transparent opacity={0.8} />
       </mesh>
 
-      {/* 3D model with fallback */}
-      <ModelCatcher>
-        <Suspense fallback={<FallbackBody />}>
-          <CharacterModel />
-        </Suspense>
-      </ModelCatcher>
+      {playerLight && (
+        <pointLight position={[0, 2.5, 0]} color="#ffffee" intensity={4} distance={6} />
+      )}
     </group>
   )
 }

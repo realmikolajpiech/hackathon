@@ -2,6 +2,7 @@ import { useGLTF } from '@react-three/drei'
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { useGameStore } from '../store/gameStore'
+import { SCALE } from '../config/modelScales'
 
 const BUILDING_MODELS: Record<string, string> = {
   bar:        '/models/industrial/building-d.glb',
@@ -84,8 +85,7 @@ export default function Building({ type, position, npcId, onClick }: BuildingPro
 
   return (
     <group position={position} onClick={isInteractable ? onClick : undefined}>
-      <primitive object={cloned} />
-      {/* Single soft interior light — illuminates street below windows */}
+      <primitive object={cloned} scale={SCALE.building} />
 
       {isInteractable && (
         <mesh position={[0, 2, 0]} onClick={onClick} visible={false}>

@@ -11,6 +11,7 @@ import VoiceUI from '../components/VoiceUI'
 import Notebook from '../components/Notebook'
 import Inventory from '../components/Inventory'
 import { useGameStore } from '../store/gameStore'
+import { WORLD_SCALE, SCALE } from '../config/modelScales'
 
 extend({ UnrealBloomPass, FilmPass })
 
@@ -58,8 +59,7 @@ class ModelErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
   render() { return this.state.hasError ? null : this.props.children }
 }
 
-// ─── Scale factor for world (everything except player) ──────────────────────
-const W = 2
+const W = WORLD_SCALE
 
 // ─── Road layout ────────────────────────────────────────────────────────────
 const ROAD_SPACING = 3  // tiles between intersections
@@ -120,7 +120,7 @@ function RoadGrid() {
           key={i}
           object={t.obj === 'cross' ? cross : straight}
           position={t.pos}
-          scale={W}
+          scale={SCALE.road}
           rotation={[0, t.rot, 0]}
         />
       ))}
@@ -157,7 +157,7 @@ function FillerBuildings() {
   return (
     <group>
       {placements.map((p, i) => (
-        <Clone key={i} object={p.scene} position={p.pos} rotation={[0, p.rot, 0]} scale={W} />
+        <Clone key={i} object={p.scene} position={p.pos} rotation={[0, p.rot, 0]} scale={SCALE.fillerBuilding} />
       ))}
     </group>
   )
@@ -214,7 +214,7 @@ function GLBLamps() {
     <group>
       {positions.map((pos, i) => (
         <group key={i}>
-          <Clone object={lamp} position={pos} scale={W} />
+          <Clone object={lamp} position={pos} scale={SCALE.lamp} />
           <LampSpot px={pos[0]} pz={pos[2]} />
         </group>
       ))}
@@ -232,10 +232,10 @@ function ParkedCars() {
 
   return (
     <group>
-      <Clone object={sedan}  position={[-2, 0, 7]}  scale={W * 0.5} />
-      <Clone object={taxi}   position={[7, 0, 2]}   scale={W * 0.5} rotation={[0, Math.PI / 2, 0]} />
-      <Clone object={police} position={[2, 0, -7]}  scale={W * 0.5} />
-      <Clone object={sedan}  position={[-7, 0, -2]} scale={W * 0.5} rotation={[0, Math.PI / 2, 0]} />
+      <Clone object={sedan}  position={[-2, 0, 7]}  scale={SCALE.car} />
+      <Clone object={taxi}   position={[7, 0, 2]}   scale={SCALE.car} rotation={[0, Math.PI / 2, 0]} />
+      <Clone object={police} position={[2, 0, -7]}  scale={SCALE.car} />
+      <Clone object={sedan}  position={[-7, 0, -2]} scale={SCALE.car} rotation={[0, Math.PI / 2, 0]} />
     </group>
   )
 }
@@ -356,8 +356,9 @@ export default function CityScene() {
           minPolarAngle={Math.PI / 6}
         />
 
-        {/* Player — always renders (model loads inside its own Suspense) */}
-        <Player onPositionChange={(pos) => playerPos.current.copy(pos)} />
+        <Suspense fallback={null}>
+          <Player onPositionChange={(pos) => playerPos.current.copy(pos)} />
+        </Suspense>
         <FollowCamera target={playerPos.current} controlsRef={controlsRef} />
         <ProximityChecker buildings={buildings} playerPos={playerPos} onNearbyChange={handleNearbyChange} />
 
